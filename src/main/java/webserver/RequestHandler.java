@@ -13,19 +13,16 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import static http.constants.HttpHeader.*;
+import static http.request.RequestURL.*;
 import static http.util.HttpRequestUtils.parseQueryParameter;
 
 public class RequestHandler implements Runnable{
     Socket connection;
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
-    private static final String ROOT_URL = "./webapp";
-    private static final String HOME_URL = "/index.html";
-    private static final String LOGIN_FAILED_URL = "/user/login_failed.html";
-    private static final String LOGIN_URL = "/user/login.html";
-    private static final String LIST_URL = "/user/list.html";
 
     private final Repository repository;
-    private final Path homePath = Paths.get(ROOT_URL + HOME_URL);
+    private final Path homePath = Paths.get(ROOT.getUrl() + INDEX.getUrl());
 
     public RequestHandler(Socket connection, Repository repository) {
         this.connection = connection;
@@ -56,17 +53,17 @@ public class RequestHandler implements Runnable{
                     break;
                 }
                 // header info
-                if (line.startsWith("Content-Length")) {
+                if (line.startsWith(CONTENT_LENGTH.getHeader())) {
                     requestContentLength = Integer.parseInt(line.split(": ")[1]);
                 }
-                if (line.startsWith("Cookie")) {
+                if (line.startsWith(COOKIE.getHeader())) {
                     cookie = line.split(": ")[1];
                 }
             }
 
             // 요구사항 1번
             if (method.equals("GET") && url.endsWith(".html")) {
-                body = Files.readAllBytes(Paths.get(ROOT_URL + url));
+                body = Files.readAllBytes(Paths.get(ROOT.getUrl() + url));
             }
 
             if (url.equals("/")) {
@@ -74,17 +71,17 @@ public class RequestHandler implements Runnable{
             }
 
             // 요구사항 3번
-            if (url.equals("/user/signup") && method.equals("POST")) {
+            if (url.equals(SIGNUP.getUrl()) && method.equals("POST")) {
                 String queryString = IOUtils.readData(br, requestContentLength);
                 Map<String, String> queryParameter = parseQueryParameter(queryString);
                 User user = new User(queryParameter.get("userId"), queryParameter.get("password"), queryParameter.get("name"), queryParameter.get("email"));
                 repository.addUser(user);
-                response302Header(dos, HOME_URL);
+                response302Header(dos, INDEX.getUrl());
                 return;
             }
 
             // 요구사항 5번
-            if (url.equals("/user/login")) {
+            if (url.equals(LOGIN_POST.getUrl())) {
                 String queryString = IOUtils.readData(br, requestContentLength);
                 Map<String, String> queryParameter = parseQueryParameter(queryString);
                 User user = repository.findUserById(queryParameter.get("userId"));
@@ -93,17 +90,17 @@ public class RequestHandler implements Runnable{
             }
 
             // 요구사항 6번
-            if (url.equals("/user/userList")) {
+            if (url.equals(USER_LIST.getUrl())) {
                 if (!cookie.equals("logined=true")) {
-                    response302Header(dos,LOGIN_URL);
+                    response302Header(dos, LOGIN.getUrl());
                     return;
                 }
-                body = Files.readAllBytes(Paths.get(ROOT_URL + LIST_URL));
+                body = Files.readAllBytes(Paths.get(ROOT.getUrl() + USER_LIST_HTML.getUrl()));
             }
 
             // 요구사항 7번
             if (method.equals("GET") && url.endsWith(".css")) {
-                body = Files.readAllBytes(Paths.get(ROOT_URL + url));
+                body = Files.readAllBytes(Paths.get(ROOT.getUrl() + url));
                 response200HeaderWithCss(dos, body.length);
                 responseBody(dos, body);
                 return;
@@ -111,7 +108,7 @@ public class RequestHandler implements Runnable{
 
             // image
             if (method.equals("GET") && url.endsWith(".jpeg")) {
-                body = Files.readAllBytes(Paths.get(ROOT_URL + url));
+                body = Files.readAllBytes(Paths.get(ROOT.getUrl() + url));
                 response200Header(dos, body.length);
                 responseBody(dos, body);
                 return;
@@ -127,10 +124,10 @@ public class RequestHandler implements Runnable{
 
     private void login(DataOutputStream dos, Map<String, String> queryParameter, User user) {
         if (user != null && user.getPassword().equals(queryParameter.get("password"))) {
-            response302HeaderWithCookie(dos, HOME_URL);
+            response302HeaderWithCookie(dos, INDEX.getUrl());
             return;
         }
-        response302Header(dos, LOGIN_FAILED_URL);
+        response302Header(dos, LOGIN_FAILED.getUrl());
     }
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
