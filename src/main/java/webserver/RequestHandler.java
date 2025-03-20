@@ -1,5 +1,6 @@
 package webserver;
 
+import controller.*;
 import db.Repository;
 import http.constants.HttpHeader;
 import http.request.HttpRequest;
@@ -23,6 +24,7 @@ public class RequestHandler implements Runnable{
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
 
     private final Repository repository;
+    private Controller controller = new ForwardController();
 
     public RequestHandler(Socket connection, Repository repository) {
         this.connection = connection;
@@ -44,106 +46,32 @@ public class RequestHandler implements Runnable{
 
             // 요구사항 1번
             if (httpRequest.getMethod().isEqual("GET") && httpRequest.getUrl().endsWith(".html")) {
-                httpResponse.forward(httpRequest.getUrl());
-                return;
+                controller = new ForwardController();
             }
 
             if (httpRequest.getUrl().equals("/")) {
-                httpResponse.forward(INDEX.getUrl());
-                return;
+                controller = new HomeController();
             }
 
             // 요구사항 3번
             if (httpRequest.getUrl().equals(SIGNUP.getUrl()) && httpRequest.getMethod().isEqual("POST")) {
-                Map<String, String> queryParameter = httpRequest.getQueryParametersFromBody();
-                User user = new User(
-                        queryParameter.get(UserQueryKey.ID.getKey()),
-                        queryParameter.get(UserQueryKey.PASSWORD.getKey()),
-                        queryParameter.get(UserQueryKey.NAME.getKey()),
-                        queryParameter.get(UserQueryKey.EMAIL.getKey()));
-                repository.addUser(user);
-                httpResponse.redirect(INDEX.getUrl());
-                return;
+                controller = new SignUpController(repository);
             }
 
             // 요구사항 5번
             if (httpRequest.getUrl().equals(LOGIN_POST.getUrl())) {
-                Map<String, String> queryParameter = httpRequest.getQueryParametersFromBody();
-                User user = repository.findUserById(queryParameter.get(UserQueryKey.ID.getKey()));
-                login(httpResponse, queryParameter, user);
-                return;
+                controller = new LoginController(repository);
             }
 
             // 요구사항 6번
             if (httpRequest.getUrl().equals(USER_LIST.getUrl())) {
-                String cookie = httpRequest.getHeader(HttpHeader.COOKIE);
-                if (cookie == null || !cookie.equals("logined=true")) {
-                    httpResponse.redirect(LOGIN.getUrl());
-                    return;
-                }
-                httpResponse.forward(USER_LIST_HTML.getUrl());
+                controller = new ListController();
             }
 
-            // 요구사항 7번
-            if (httpRequest.getMethod().isEqual("GET") && httpRequest.getUrl().endsWith(".css")) {
-                body = Files.readAllBytes(Paths.get(ROOT.getUrl() + httpRequest.getUrl()));
-                response200HeaderWithCss(dos, body.length);
-                responseBody(dos, body);
-                return;
-            }
-
-            // image
-            if (httpRequest.getMethod().isEqual("GET") && httpRequest.getUrl().endsWith(".jpeg")) {
-                body = Files.readAllBytes(Paths.get(ROOT.getUrl() + httpRequest.getUrl()));
-                response200Header(dos, body.length);
-                responseBody(dos, body);
-                return;
-            }
+            controller.execute(httpRequest, httpResponse);
 
         } catch (IOException e) {
             log.log(Level.SEVERE,e.getMessage());
         }
     }
-
-    private void login(HttpResponse response, Map<String, String> queryParameter, User user) throws IOException {
-        if (user != null && user.getPassword().equals(queryParameter.get(UserQueryKey.PASSWORD.getKey()))) {
-            response.put(HttpHeader.SET_COOKIE,"logined=true");
-            response.redirect(INDEX.getUrl());
-            return;
-        }
-        response.redirect(LOGIN_FAILED.getUrl());
-    }
-
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
-        try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
-
-    private void response200HeaderWithCss(DataOutputStream dos, int lengthOfBodyContent) {
-        try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/css;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
-            dos.writeBytes("\r\n");
-            dos.flush();
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
-
-    private void responseBody(DataOutputStream dos, byte[] body) {
-        try {
-            dos.write(body, 0, body.length);
-            dos.flush();
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
-
 }
