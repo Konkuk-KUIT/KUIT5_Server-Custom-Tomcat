@@ -24,8 +24,7 @@ public class HttpHeaders {
 
         while (true) {
             final String line = bufferedReader.readLine();
-            System.out.println(line);
-            if (line.equals("")) {
+            if (line == null || line.isEmpty()) {
                 break;
             }
             final List<String> header = parseHeader(line);
