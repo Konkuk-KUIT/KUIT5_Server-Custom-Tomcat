@@ -1,34 +1,19 @@
 package webserver;
 
-import controller.*;
-import db.Repository;
-import http.constants.HttpHeader;
 import http.request.HttpRequest;
 import http.response.HttpResponse;
-import model.User;
-import model.constants.UserQueryKey;
 
 import java.io.*;
 import java.net.Socket;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import static http.request.RequestURL.*;
 
 public class RequestHandler implements Runnable{
     Socket connection;
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
 
-    private final Repository repository;
-    private Controller controller = new ForwardController();
-
-    public RequestHandler(Socket connection, Repository repository) {
+    public RequestHandler(Socket connection) {
         this.connection = connection;
-        this.repository = repository;
     }
 
     @Override
@@ -42,36 +27,11 @@ public class RequestHandler implements Runnable{
             log.log(Level.INFO, "HTTP request url : " + httpRequest.getUrl());
             HttpResponse httpResponse = new HttpResponse(dos);
 
-            byte[] body = new byte[0];
-
-            // 요구사항 1번
-            if (httpRequest.getMethod().isEqual("GET") && httpRequest.getUrl().endsWith(".html")) {
-                controller = new ForwardController();
-            }
-
-            if (httpRequest.getUrl().equals("/")) {
-                controller = new HomeController();
-            }
-
-            // 요구사항 3번
-            if (httpRequest.getUrl().equals(SIGNUP.getUrl()) && httpRequest.getMethod().isEqual("POST")) {
-                controller = new SignUpController(repository);
-            }
-
-            // 요구사항 5번
-            if (httpRequest.getUrl().equals(LOGIN_POST.getUrl())) {
-                controller = new LoginController(repository);
-            }
-
-            // 요구사항 6번
-            if (httpRequest.getUrl().equals(USER_LIST.getUrl())) {
-                controller = new ListController();
-            }
-
-            controller.execute(httpRequest, httpResponse);
+            RequestMapper requestMapper = new RequestMapper(httpRequest,httpResponse);
+            requestMapper.proceed();
 
         } catch (IOException e) {
-            log.log(Level.SEVERE,e.getMessage());
+            log.log(Level.SEVERE, "ex : " + e.getMessage() + "\nstack trace : " + e);
         }
     }
 }
