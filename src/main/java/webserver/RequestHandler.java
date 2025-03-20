@@ -3,6 +3,7 @@ package webserver;
 import db.Repository;
 import http.constants.HttpHeader;
 import http.request.HttpRequest;
+import http.response.HttpResponse;
 import model.User;
 import model.constants.UserQueryKey;
 
@@ -22,7 +23,6 @@ public class RequestHandler implements Runnable{
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
 
     private final Repository repository;
-    private final Path homePath = Paths.get(ROOT.getUrl() + INDEX.getUrl());
 
     public RequestHandler(Socket connection, Repository repository) {
         this.connection = connection;
@@ -36,18 +36,21 @@ public class RequestHandler implements Runnable{
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
             DataOutputStream dos = new DataOutputStream(out);
 
-            byte[] body = new byte[0];
-
             HttpRequest httpRequest = HttpRequest.from(br);
             log.log(Level.INFO, "HTTP request url : " + httpRequest.getUrl());
+            HttpResponse httpResponse = new HttpResponse(dos);
+
+            byte[] body = new byte[0];
 
             // 요구사항 1번
             if (httpRequest.getMethod().isEqual("GET") && httpRequest.getUrl().endsWith(".html")) {
-                body = Files.readAllBytes(Paths.get(ROOT.getUrl() + httpRequest.getUrl()));
+                httpResponse.forward(httpRequest.getUrl());
+                return;
             }
 
             if (httpRequest.getUrl().equals("/")) {
-                body = Files.readAllBytes(homePath);
+                httpResponse.forward(INDEX.getUrl());
+                return;
             }
 
             // 요구사항 3번
@@ -59,7 +62,7 @@ public class RequestHandler implements Runnable{
                         queryParameter.get(UserQueryKey.NAME.getKey()),
                         queryParameter.get(UserQueryKey.EMAIL.getKey()));
                 repository.addUser(user);
-                response302Header(dos, INDEX.getUrl());
+                httpResponse.redirect(INDEX.getUrl());
                 return;
             }
 
@@ -67,7 +70,7 @@ public class RequestHandler implements Runnable{
             if (httpRequest.getUrl().equals(LOGIN_POST.getUrl())) {
                 Map<String, String> queryParameter = httpRequest.getQueryParametersFromBody();
                 User user = repository.findUserById(queryParameter.get(UserQueryKey.ID.getKey()));
-                login(dos, queryParameter, user);
+                login(httpResponse, queryParameter, user);
                 return;
             }
 
@@ -75,10 +78,10 @@ public class RequestHandler implements Runnable{
             if (httpRequest.getUrl().equals(USER_LIST.getUrl())) {
                 String cookie = httpRequest.getHeader(HttpHeader.COOKIE);
                 if (cookie == null || !cookie.equals("logined=true")) {
-                    response302Header(dos, LOGIN.getUrl());
+                    httpResponse.redirect(LOGIN.getUrl());
                     return;
                 }
-                body = Files.readAllBytes(Paths.get(ROOT.getUrl() + USER_LIST_HTML.getUrl()));
+                httpResponse.forward(USER_LIST_HTML.getUrl());
             }
 
             // 요구사항 7번
@@ -97,20 +100,18 @@ public class RequestHandler implements Runnable{
                 return;
             }
 
-            response200Header(dos, body.length);
-            responseBody(dos, body);
-
         } catch (IOException e) {
             log.log(Level.SEVERE,e.getMessage());
         }
     }
 
-    private void login(DataOutputStream dos, Map<String, String> queryParameter, User user) {
+    private void login(HttpResponse response, Map<String, String> queryParameter, User user) throws IOException {
         if (user != null && user.getPassword().equals(queryParameter.get(UserQueryKey.PASSWORD.getKey()))) {
-            response302HeaderWithCookie(dos, INDEX.getUrl());
+            response.put(HttpHeader.SET_COOKIE,"logined=true");
+            response.redirect(INDEX.getUrl());
             return;
         }
-        response302Header(dos, LOGIN_FAILED.getUrl());
+        response.redirect(LOGIN_FAILED.getUrl());
     }
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
@@ -140,28 +141,6 @@ public class RequestHandler implements Runnable{
         try {
             dos.write(body, 0, body.length);
             dos.flush();
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
-
-    // 요구사항 4번
-    private void response302Header(DataOutputStream dos, String path) {
-        try {
-            dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
-            dos.writeBytes("Location: " + path + "\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
-
-    private void response302HeaderWithCookie(DataOutputStream dos, String path) {
-        try {
-            dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
-            dos.writeBytes("Location: " + path + "\r\n");
-            dos.writeBytes("Set-Cookie: logined=true" + "\r\n");
-            dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
