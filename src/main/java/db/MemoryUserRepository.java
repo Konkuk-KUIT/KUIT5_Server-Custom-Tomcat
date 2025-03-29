@@ -23,7 +23,7 @@ public class MemoryUserRepository implements Repository{
 
     public void addUser(User user) {
         users.put(user.getUserId(), user);
-    }
+    } // key 값: userId
 
     public User findUserById(String userId) {
         return users.get(userId);
