@@ -7,6 +7,8 @@ import model.User;
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,8 +43,12 @@ public class RequestHandler implements Runnable{
             int contentLength = 0;
 
             // Header 파싱
+            List<String> headers = new ArrayList<>();
+            // BufferedReader는 한 번 읽고 나면 커서가 앞으로 움직여서 다시 읽기 어려움
+            // 그러므로 헤더 먼저 모두 읽고 저장해두기
             String line;
             while (!(line = br.readLine()).equals("")) {
+                headers.add(line);
                 if (line.startsWith("Content-Length")) {
                     contentLength = Integer.parseInt(line.split(": ")[1]);
                 }
@@ -52,12 +58,26 @@ public class RequestHandler implements Runnable{
                 url = "/index.html";
             }
 
-            if (method.equals("GET") && handleSignUpGet(dos, url)) {
+            if (method.equals("POST") && url.equals("/user/signup")) { // POST 회원가입
+                log.info("회원가입 선택");
+                handleSignUp(br, dos, contentLength);
                 return;
             }
 
-            if (method.equals("POST") && url.equals("/user/signup")) {
-                handleSignUpPost(br, dos, contentLength);
+            if (method.equals("POST") && url.equals("/user/login")) { // 로그인
+                log.info("로그인 선택");
+                handleLogin(br, dos, contentLength);
+                return;
+            }
+
+            if (url.equals("/user/userList")) {
+                if(!isLoggedIn(headers)){
+                    log.info("로그인하지 않은 사용자의 userList 접근");
+                    response302Header(dos, "/user/login.html");
+                } else {
+                    response302Header(dos, "/user/list.html");
+                    log.info("로그인한 사용자의 userList 접근");
+                }
                 return;
             }
 
@@ -83,7 +103,34 @@ public class RequestHandler implements Runnable{
         }
     }
 
-    private void handleSignUpPost(BufferedReader br, DataOutputStream dos, int contentLength) throws IOException {
+    private void handleLogin(BufferedReader br, DataOutputStream dos, int contentLength) throws IOException {
+        char[] bodyData = new char[contentLength];
+        br.read(bodyData, 0, contentLength);
+        String body = new String(bodyData);
+
+        Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
+
+        User user = MemoryUserRepository.getInstance().findUserById(params.get("userId"));
+
+        // Todo 검증 로직 추후에 다 따로 빼기
+        if (user == null) { // 존재하지 않는 회원, 로그인 실패
+            log.info("user login failed");
+            response302Header(dos, "/user/login_failed.html");
+            return;
+        }
+
+        if(!user.getPassword().equals(params.get("password"))) { // 비밀번호 불일치, 로그인 실패
+            log.info("user login failed");
+            response302Header(dos, "/user/login_failed.html");
+            return;
+        }
+
+        response302Header(dos, "/index.html", "logined=true");
+
+        log.info("user login success!: " + user.getUserId());
+    }
+
+    private void handleSignUp(BufferedReader br, DataOutputStream dos, int contentLength) throws IOException {
         char[] bodyData = new char[contentLength];
         br.read(bodyData, 0, contentLength);
         String body = new String(bodyData);
@@ -102,27 +149,28 @@ public class RequestHandler implements Runnable{
         response302Header(dos, "/index.html");
     }
 
-    private boolean handleSignUpGet(DataOutputStream dos, String url) {
-        if (url.startsWith("/user/signup")) {
-            // 쿼리 파라미터 파싱
-            String queryString = url.substring(url.indexOf("?") + 1);
-            Map<String, String> params = HttpRequestUtils.parseQueryParameter(queryString);
-
-            // User 객체 생성 후 저장
-            User user = new User(
-                    params.get("userId"),
-                    params.get("password"),
-                    params.get("name"),
-                    params.get("email")
-            );
-            MemoryUserRepository.getInstance().addUser(user);
-            log.info("New user signed up: " + user.getUserId());
-
-            // index.html로 redirect
-            response302Header(dos, "/index.html");
-            return true;
+    private boolean isLoggedIn(List<String> headers) {
+        for (String line : headers) {
+            if (line.startsWith("Cookie:")) {
+                String cookieLine = line.substring("Cookie:".length()).trim();
+                Map<String, String> cookies = HttpRequestUtils.parseCookies(cookieLine);
+                return "true".equals(cookies.get("logined"));
+            }
         }
-        return false;
+        return false; // Cookie가 없거나 logined=true가 아닌 경우
+    }
+
+
+    // Todo response header 클래스 따로 빼기
+    private void response302Header(DataOutputStream dos, String path, String cookie) { // 쿠키 추가해서 오버로드한 메소드
+        try {
+            dos.writeBytes("HTTP/1.1 302 Found\r\n");
+            dos.writeBytes("Location: " + path + "\r\n");
+            dos.writeBytes("Set-Cookie: " + cookie + "\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
     }
 
     private void response302Header(DataOutputStream dos, String path) {
