@@ -81,10 +81,31 @@ public class RequestHandler implements Runnable{
                 return;
             }
 
+            if(url.endsWith("css")){
+                handleCssRequest(url, dos);
+            }
+
             handleStaticResource(url, dos);
 
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+    private void handleCssRequest(String url, DataOutputStream dos) throws IOException{
+        log.info("css 파일 요청 들어옴");
+        String filePath = "./webapp" + url;
+        File file = new File(filePath);
+
+        if (file.exists()) {
+            byte[] body = Files.readAllBytes(file.toPath());
+            response200Header(dos, body.length, "CSS");
+            responseBody(dos, body);
+            log.info("css 전송 성공");
+        } else {
+            byte[] body = "<h1>404 Not Found</h1>".getBytes();
+            response404Header(dos, body.length);
+            responseBody(dos, body);
         }
     }
 
@@ -198,6 +219,17 @@ public class RequestHandler implements Runnable{
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
+            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+    private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String css) { // css 인자 추가해서 오버로드한 메소드
+        try {
+            dos.writeBytes("HTTP/1.1 200 OK \r\n");
+            dos.writeBytes("Content-Type: text/css;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
