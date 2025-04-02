@@ -8,8 +8,9 @@ import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 
 public class WebServer {
-    private static final int DEFAULT_PORT = 80;
-    private static final int DEFAULT_THREAD_NUM = 50;
+    private static final int DEFAULT_PORT = 80; // 기본 포트 번호
+    private static final int DEFAULT_THREAD_NUM = 50; // 기본 스레드 수, 요청을 병렬 처리
+    // 로그 기록용 객체
     private static final Logger log = Logger.getLogger(WebServer.class.getName());
 
     public static void main(String[] args) throws IOException {
