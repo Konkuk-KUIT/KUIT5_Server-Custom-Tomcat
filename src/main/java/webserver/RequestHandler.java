@@ -1,5 +1,8 @@
 package webserver;
 
+import db.MemoryUserRepository;
+import model.User;
+
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
@@ -10,6 +13,7 @@ public class RequestHandler implements Runnable {
     Socket connection;
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
     private static final String WEBAPP_PATH = "./webapp";
+    private final MemoryUserRepository userRepository = MemoryUserRepository.getInstance();
 
     public RequestHandler(Socket connection) {
         this.connection = connection;
@@ -40,16 +44,12 @@ public class RequestHandler implements Runnable {
             if (requestPath.equals("/")) {
                 requestPath = "/index.html";
             }
-            // 파일 객체 생성
-            File file = new File(WEBAPP_PATH + requestPath);
-            // 파일 존재 확인 후 응답 보냄
-            if (file.exists() && !file.isDirectory()) {
-                byte[] body = Files.readAllBytes(file.toPath());
-                response200Header(dos, body.length);
-                responseBody(dos, body);
+
+            // 요구사항 2 - 유저 생성인지 index.html 파일 띄울지 결정
+            if (requestPath.startsWith("/user/create?")) {
+                handleUserCreation(requestPath, dos);
             } else {
-                // 파일 없을 시 404 응답 보냄
-                response404(dos);
+                serveStaticFile(requestPath, dos);
             }
 
 //            byte[] body = "Hello World".getBytes();
@@ -61,7 +61,43 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
+    private void handleUserCreation(String requestPath, DataOutputStream dos) throws IOException {
+        String[] params = requestPath.substring(requestPath.indexOf("?") + 1).split("&");
+        String userId = "", password = "", name = "", email = "";
+
+        for (String param : params) {
+            String[] keyValue = param.split("=");
+            if (keyValue.length == 2) {
+                switch (keyValue[0]) {
+                    case "userId": userId = keyValue[1]; break;
+                    case "password": password = keyValue[1]; break;
+                    case "name": name = keyValue[1]; break;
+                    case "email": email = keyValue[1]; break;
+                }
+            }
+            userRepository.addUser(new User(userId, password, name, email));
+            response302Redirect(dos, "/index.html");
+        }
+    }
+
+    private void serveStaticFile(String requestPath, DataOutputStream dos) throws IOException {
+        if (requestPath.equals("/")) {
+            requestPath = "/index.html";
+        }
+        // 파일 객체 생성
+        File file = new File(WEBAPP_PATH + requestPath);
+        // 파일 존재 확인 후 응답 보냄
+        if (file.exists() && !file.isDirectory()) {
+            byte[] body = Files.readAllBytes(file.toPath());
+            response200Header(dos, body.length);
+            responseBody(dos, body);
+        } else {
+            // 파일 없을 시 404 응답 보냄
+            response404(dos);
+        }
+    }
+
+    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) throws IOException{
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             // 브라우저가 HTML로 인식하게 함
@@ -75,6 +111,12 @@ public class RequestHandler implements Runnable {
     }
 
     // 본문(HTML) 전송
+
+    private void response302Redirect(DataOutputStream dos, String location) throws IOException {
+        dos.writeBytes("HTTP/1.1 302 Found\r\n");
+        dos.writeBytes("Location: " + location + "\r\n");
+        dos.writeBytes("\r\n");
+    }
     private void responseBody(DataOutputStream dos, byte[] body) {
         try {
             // 바이트 데이터를 처음부터 끝까지 읽어서 클라이언트에게 보냄
