@@ -116,9 +116,15 @@ public class RequestHandler implements Runnable{
                 MemoryUserRepository.getInstance().addUser(user);
                 System.out.println("POST 회원가입 성공: " + user.getUserId());
 
+                /// 요구사항 4: 302 status code 적용
                 response302Header(dos, "/index.html");
                 return;
             }
+
+
+
+
+
 
 
             String filePath = "../../../webapp" + url; ////흠.... 경로가......
@@ -140,6 +146,7 @@ public class RequestHandler implements Runnable{
         }
     }
 
+    /// 요구사항 4: 302 status code 적용
     private void response302Header(DataOutputStream dos, String path) {
         try {
             dos.writeBytes("HTTP/1.1 302 Found\r\n");
