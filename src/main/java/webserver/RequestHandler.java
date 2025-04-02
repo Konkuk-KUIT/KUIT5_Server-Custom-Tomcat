@@ -58,16 +58,6 @@ public class RequestHandler implements Runnable{
                 url = "/index.html";
             }
 
-            // URL 라우팅 처리
-            if (url.equals("/user/userList")) {
-                url = "/user/list.html";
-            }
-
-            if (url.equals("/user/login")) {
-                url = "/user/login.html";
-            }
-
-
             ///요구사항 2: get으로 회원가입 쿼리스트링처리
             if (method.equals("GET")&&url.startsWith("/user/signup")) {
                 String queryString = url.split("\\?")[1];
@@ -121,8 +111,11 @@ public class RequestHandler implements Runnable{
                 return;
             }
 
+
+
+
             /// 요구사항 5: 로그인하기
-            if (method.equals("POST") && url.startsWith("/user/login")) {
+            if (method.equals("POST") && url.equals("/user/login")) {
                 int contentLengthSignin = 0;
                 // 헤더 파싱
                 String headerLine;
@@ -155,6 +148,35 @@ public class RequestHandler implements Runnable{
                 }
 
                 return;
+            }
+
+            /// 요구사항 6: 사용자 목록 출력
+            if (url.equals("/user/userList")) {
+                boolean isLogined = false;
+
+                // 헤더에서 Cookie 파싱
+                String headerLine;
+                while (!(headerLine = br.readLine()).equals("")) {
+                    if (headerLine.startsWith("Cookie:")) {
+                        String cookies = headerLine.split(":")[1].trim();
+                        String[] cookieArray = cookies.split(";");
+
+                        for (String cookie : cookieArray) {
+                            String[] pair = cookie.trim().split("=");
+                            if (pair.length == 2 && pair[0].equals("logined") && pair[1].equals("true")) {
+                                isLogined = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (isLogined) {
+                    url = "/user/list.html";
+                } else {
+                    response302Header(dos, "/user/login.html");
+                    return;
+                }
             }
 
 
