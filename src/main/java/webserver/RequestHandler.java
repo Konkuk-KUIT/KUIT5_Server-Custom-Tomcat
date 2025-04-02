@@ -90,8 +90,8 @@ public class RequestHandler implements Runnable{
             }
 
             /// 요구사항 3: POST 방식으로 회원가입
-            int contentLengthSignin = 0;
             if (method.equals("POST")&&url.startsWith("/user/signup")) {
+                int contentLengthSignin = 0;
                 // 헤더 파싱
                 String headerLine;
                 while (!(headerLine = br.readLine()).equals("")) {
@@ -121,10 +121,41 @@ public class RequestHandler implements Runnable{
                 return;
             }
 
+            /// 요구사항 5: 로그인하기
+            if (method.equals("POST") && url.startsWith("/user/login")) {
+                int contentLengthSignin = 0;
+                // 헤더 파싱
+                String headerLine;
+                while (!(headerLine = br.readLine()).equals("")) {
+                    if (headerLine.startsWith("Content-Length:")) {
+                        contentLengthSignin = Integer.parseInt(headerLine.split(":")[1].trim());
+                    }
+                }
 
+                String body = IOUtils.readData(br, contentLengthSignin);
+                System.out.println("Post_Body 내용: " + body);
 
+                // 파싱
+                Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
 
+                String userId = params.get("userId");
+                String password = params.get("password");
 
+                // 회원 조회
+                User user = MemoryUserRepository.getInstance().findUserById(userId);
+
+                if (user != null && user.getPassword().equals(password)) {
+                    // 로그인 성공 → index.html로 리다이렉트, 쿠키 설정
+                    response302HeaderWithCookie(dos, "/index.html", "logined=true");
+                    System.out.println("로그인 성공: " + userId);
+                } else {
+                    // 로그인 실패 → login_failed.html로 리다이렉트
+                    response302Header(dos, "/user/login_failed.html");
+                    System.out.println("로그인 실패: " + userId);
+                }
+
+                return;
+            }
 
 
             String filePath = "../../../webapp" + url; ////흠.... 경로가......
@@ -195,4 +226,18 @@ public class RequestHandler implements Runnable{
         if (filePath.endsWith(".png")) return "image/png";
         if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) return "image/jpeg";
         return "application/octet-stream";
-    }}
+    }
+    private void response302HeaderWithCookie(DataOutputStream dos, String path, String cookie) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 Found\r\n");
+            dos.writeBytes("Location: " + path + "\r\n");
+            dos.writeBytes("Set-Cookie: " + cookie + "\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+
+
+}
