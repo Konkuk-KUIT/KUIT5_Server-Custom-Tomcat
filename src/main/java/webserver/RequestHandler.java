@@ -1,7 +1,10 @@
 package webserver;
 
+import http.util.IOUtils;
+
 import java.io.*;
 import java.net.Socket;
+import java.nio.file.Files;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -16,23 +19,87 @@ public class RequestHandler implements Runnable{
     @Override
     public void run() {
         log.log(Level.INFO, "New Client Connect! Connected IP : " + connection.getInetAddress() + ", Port : " + connection.getPort());
-        try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()){
+        try (InputStream in = connection.getInputStream();
+             OutputStream out = connection.getOutputStream()){
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
             DataOutputStream dos = new DataOutputStream(out);
 
-            byte[] body = "Hello World".getBytes();
-            response200Header(dos, body.length);
-            responseBody(dos, body);
+            String line = br.readLine();
+            System.out.println("요청 라인: " + line);
+            if (line == null || line.isEmpty()) {
+                System.out.println("요청이 null 또는 비어 있음 - 응답 없이 종료됨");
+                return;
+            }
+
+            String[] tokens = line.split(" ");
+            String method = tokens[0];
+            String url = tokens[1];
+
+            // POST 요청일 때만 body 읽기
+            int contentLength = 0;
+            if (method.equals("POST")) {
+                // 헤더 파싱
+                String headerLine;
+                while (!(headerLine = br.readLine()).equals("")) {
+                    if (headerLine.startsWith("Content-Length:")) {
+                        contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
+                    }
+                }
+                // 본문 읽기
+                String body = IOUtils.readData(br, contentLength);
+                System.out.println("Body 내용: " + body);
+            }
+
+            if (url.equals("/")) {
+                url = "/index.html";
+            }
+
+            // URL 라우팅 처리
+            if (url.equals("/user/userList")) {
+                url = "/user/list.html";
+            }
+
+            if (url.equals("/user/login")) {
+                url = "/user/login.html";
+            }
+
+            String filePath = "../../../webapp" + url; ////흠.... 경로가......
+            File file = new File(filePath);
+
+
+            if (file.exists()) {
+                byte[] body = Files.readAllBytes(file.toPath());
+                String contentType = getContentType(filePath); // Content-Type 추출
+                response200Header(dos, body.length, contentType); // 200 헤더 전송
+                responseBody(dos, body);
+            } else {
+                byte[] body = "<h1>404 Not Found</h1>".getBytes();
+                response404Header(dos, body.length);
+                responseBody(dos, body);
+            }
+
 
         } catch (IOException e) {
             log.log(Level.SEVERE,e.getMessage());
         }
     }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
+    private void response404Header(DataOutputStream dos, int lengthOfBodyContent) {
         try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
+            dos.writeBytes("HTTP/1.1 404 Not Found\r\n");
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
+            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+
+    private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String contentType) {
+        try {
+            dos.writeBytes("HTTP/1.1 200 OK\r\n");
+            dos.writeBytes("Content-Type: " + contentType + ";charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
@@ -49,4 +116,11 @@ public class RequestHandler implements Runnable{
         }
     }
 
-}
+    private String getContentType(String filePath) {
+        if (filePath.endsWith(".html")) return "text/html";
+        if (filePath.endsWith(".css")) return "text/css";
+        if (filePath.endsWith(".js")) return "application/javascript";
+        if (filePath.endsWith(".png")) return "image/png";
+        if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) return "image/jpeg";
+        return "application/octet-stream";
+    }}
