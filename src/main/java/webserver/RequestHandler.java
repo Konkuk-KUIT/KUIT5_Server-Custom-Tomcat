@@ -8,6 +8,7 @@ import model.User;
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.*;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.logging.Level;
@@ -41,6 +42,7 @@ public class RequestHandler implements Runnable {
             String method = st.nextToken();
             String url = st.nextToken();
 
+            //요구사항 1번
             if(url.equals("/")){
                 filePath = Paths.get(WEBAPP + "/index.html");
                 body = Files.readAllBytes(filePath);
@@ -50,6 +52,18 @@ public class RequestHandler implements Runnable {
                 filePath = Paths.get(WEBAPP + url);
                 body = Files.readAllBytes(filePath);
             }
+
+            //요구사항 2번
+            if(url.contains("signup")){
+                String[] str = url.split("\\?");
+                Map<String, String> map = HttpRequestUtils.parseQueryParameter(str[1]);
+                User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
+                MemoryUserRepository.getInstance().addUser(user);
+
+                filePath = Paths.get(WEBAPP + "/index.html");
+                body = Files.readAllBytes(filePath);
+            }
+
 
 
 //            //요구사항 2번
