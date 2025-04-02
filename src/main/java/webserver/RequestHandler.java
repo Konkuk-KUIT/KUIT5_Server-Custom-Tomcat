@@ -1,10 +1,14 @@
 package webserver;
 
+import db.MemoryUserRepository;
+import http.util.HttpRequestUtils;
 import http.util.IOUtils;
+import model.User;
 
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -63,9 +67,30 @@ public class RequestHandler implements Runnable{
                 url = "/user/login.html";
             }
 
+
+            ///요구사항 2: get으로 회원가입 쿼리스트링처리
+            if (url.startsWith("/user/signup")) {
+                String queryString = url.split("\\?")[1];
+
+                // 파싱
+                Map<String, String> params = HttpRequestUtils.parseQueryParameter(queryString);
+
+                User user = new User(
+                        params.get("userId"),
+                        params.get("password"),
+                        params.get("name"),
+                        params.get("email")
+                );
+
+                MemoryUserRepository.getInstance().addUser(user);
+                System.out.println("회원가입 성공: " + user.getUserId());
+
+                response302Header(dos, "/index.html");
+                return;
+            }
+
             String filePath = "../../../webapp" + url; ////흠.... 경로가......
             File file = new File(filePath);
-
 
             if (file.exists()) {
                 byte[] body = Files.readAllBytes(file.toPath());
@@ -78,9 +103,18 @@ public class RequestHandler implements Runnable{
                 responseBody(dos, body);
             }
 
-
         } catch (IOException e) {
             log.log(Level.SEVERE,e.getMessage());
+        }
+    }
+
+    private void response302Header(DataOutputStream dos, String path) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 Found\r\n");
+            dos.writeBytes("Location: " + path + "\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
         }
     }
 
@@ -94,7 +128,6 @@ public class RequestHandler implements Runnable{
             log.log(Level.SEVERE, e.getMessage());
         }
     }
-
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String contentType) {
         try {
