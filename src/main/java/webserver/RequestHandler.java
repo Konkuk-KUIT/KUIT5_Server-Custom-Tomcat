@@ -1,16 +1,20 @@
 package webserver;
 
+import db.MemoryUserRepository;
+import http.util.HttpRequestUtils;
 import http.util.IOUtils;
+import model.User;
 
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.*;
+import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class RequestHandler implements Runnable{
-//    ../../../../webapp/
+public class RequestHandler implements Runnable {
+    //    ../../../../webapp/
     String WEBAPP = "/Users/jonnykim/KUITMission/KUIT5_Server-Custom-Tomcat/webapp";
     // 상대위치로 변환
     Path filePath;
@@ -25,22 +29,52 @@ public class RequestHandler implements Runnable{
     @Override
     public void run() {
         log.log(Level.INFO, "New Client Connect! Connected IP : " + connection.getInetAddress() + ", Port : " + connection.getPort());
-        try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()){
+        try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
             DataOutputStream dos = new DataOutputStream(out);
 
-            String[] info = getRequestInfo(br);
 
-            filePath = Paths.get(WEBAPP + info[1]);
+            String requestHeader = getRequestHeader(br);
+            byte[] body = requestHeader.getBytes();
 
-//            byte[] body = "Hello World".getBytes();
-//            test(br);
-            byte[] body = Files.readAllBytes(filePath);
+            StringTokenizer st = new StringTokenizer(requestHeader, " ");
+            String method = st.nextToken();
+            String url = st.nextToken();
+
+            if(url.equals("/")){
+                filePath = Paths.get(WEBAPP + "/index.html");
+                body = Files.readAllBytes(filePath);
+            }
+
+            if (url.contains("html")) {
+                filePath = Paths.get(WEBAPP + url);
+                body = Files.readAllBytes(filePath);
+            }
+
+
+//            //요구사항 2번
+//            if (info[1].contains("?")) {
+//                StringTokenizer st = new StringTokenizer(info[1], "?");
+//                st.nextToken();
+//                String temp = st.nextToken();
+//                System.out.println(temp);
+//                Map<String, String> map = HttpRequestUtils.parseQueryParameter(temp);
+//                User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
+//                MemoryUserRepository.getInstance().addUser(user);
+//                Paths.get(WEBAPP + "/index.html");
+//            } else {
+//                //요구사항 1번
+//                if(!info[1].contains("html")) {
+//                    filePath = Paths.get(WEBAPP + "/index.html");
+//                }
+//                filePath = Paths.get(WEBAPP + info[1]);
+//            }
+
             response200Header(dos, body.length);
             responseBody(dos, body);
 
         } catch (IOException e) {
-            log.log(Level.SEVERE,e.getMessage());
+            log.log(Level.SEVERE, e.getMessage());
         }
     }
 
@@ -64,20 +98,21 @@ public class RequestHandler implements Runnable{
         }
     }
 
-    private String[] getRequestInfo(BufferedReader br) throws IOException {
+    private String getRequestHeader(BufferedReader br) throws IOException {
         try {
-            String line = br.readLine();
-            StringTokenizer st = new StringTokenizer(line," ");
-            String[] info = new String[2];
-            info[0] = st.nextToken();
-            info[1] = st.nextToken();
-            if(info[1].equals("/")){
-                info[1]="/index.html";
-            }
-            //Todo Refactoring
-            System.out.println(info[0]);
-            System.out.println(info[1]);
-            return info;
+            //            StringTokenizer st = new StringTokenizer(line, " ");
+//            String[] info = new String[2];
+//            info[0] = st.nextToken();
+//            info[1] = st.nextToken();
+//            if (info[1].equals("/")) {
+//                info[1] = "/index.html";
+//            }
+//            if(!info[1].contains("html")){
+//                return line;
+//            }
+//            //Todo Refactoring
+//            return info;
+            return br.readLine();
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
