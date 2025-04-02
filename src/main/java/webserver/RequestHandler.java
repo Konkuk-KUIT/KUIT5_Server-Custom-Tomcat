@@ -39,7 +39,7 @@ public class RequestHandler implements Runnable{
             String method = tokens[0];
             String url = tokens[1];
 
-            // POST 요청일 때만 body 읽기
+/*            // POST 요청일 때만 body 읽기
             int contentLength = 0;
             if (method.equals("POST")) {
                 // 헤더 파싱
@@ -52,7 +52,7 @@ public class RequestHandler implements Runnable{
                 // 본문 읽기
                 String body = IOUtils.readData(br, contentLength);
                 System.out.println("Body 내용: " + body);
-            }
+            }*/
 
             if (url.equals("/")) {
                 url = "/index.html";
@@ -69,7 +69,7 @@ public class RequestHandler implements Runnable{
 
 
             ///요구사항 2: get으로 회원가입 쿼리스트링처리
-            if (url.startsWith("/user/signup")) {
+            if (method.equals("GET")&&url.startsWith("/user/signup")) {
                 String queryString = url.split("\\?")[1];
 
                 // 파싱
@@ -88,6 +88,38 @@ public class RequestHandler implements Runnable{
                 response302Header(dos, "/index.html");
                 return;
             }
+
+            /// 요구사항 3: POST 방식으로 회원가입
+            int contentLengthSignin = 0;
+            if (method.equals("POST")&&url.startsWith("/user/signup")) {
+                // 헤더 파싱
+                String headerLine;
+                while (!(headerLine = br.readLine()).equals("")) {
+                    if (headerLine.startsWith("Content-Length:")) {
+                        contentLengthSignin = Integer.parseInt(headerLine.split(":")[1].trim());
+                    }
+                }
+                // 본문 읽기
+                String body = IOUtils.readData(br, contentLengthSignin);
+                System.out.println("Post_Body 내용: " + body);
+
+                // 파싱
+                Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
+
+                User user = new User(
+                        params.get("userId"),
+                        params.get("password"),
+                        params.get("name"),
+                        params.get("email")
+                );
+
+                MemoryUserRepository.getInstance().addUser(user);
+                System.out.println("POST 회원가입 성공: " + user.getUserId());
+
+                response302Header(dos, "/index.html");
+                return;
+            }
+
 
             String filePath = "../../../webapp" + url; ////흠.... 경로가......
             File file = new File(filePath);
