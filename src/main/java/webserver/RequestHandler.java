@@ -40,14 +40,22 @@ public class RequestHandler implements Runnable {
                 return;
             }
 
+            String method = tokens[0];
             String requestPath = tokens[1];
             if (requestPath.equals("/")) {
                 requestPath = "/index.html";
             }
 
-            // 요구사항 2 - 유저 생성인지 index.html 파일 띄울지 결정
-            if (requestPath.startsWith("/user/create?")) {
-                handleUserCreation(requestPath, dos);
+//            // 요구사항 2 - 유저 생성인지 index.html 파일 띄울지 결정
+//            if (requestPath.startsWith("/user/create?")) {
+//                handleUserCreation(requestPath, dos);
+//            } else {
+//                serveStaticFile(requestPath, dos);
+//            }
+
+            // 요구사항 3 - POST 방식으로 회원가입하기
+            if (method.equals("POST") && requestPath.equals("/user/create")) {
+                handleUserCreation(br, dos);
             } else {
                 serveStaticFile(requestPath, dos);
             }
@@ -61,8 +69,31 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void handleUserCreation(String requestPath, DataOutputStream dos) throws IOException {
-        String[] params = requestPath.substring(requestPath.indexOf("?") + 1).split("&");
+    private void handleUserCreation(BufferedReader br, DataOutputStream dos) throws IOException {
+        // 요구사항 3의 request body 읽기 위한 코드
+        // HTTP 요청 헤더 읽기
+        int requestContentLength = 0;
+
+        while (true) {
+            final String line = br.readLine();
+            // line.equals("")에서 수정
+            if (line == null || line.isEmpty()) {
+                break;
+            }
+            // header info
+            if (line.startsWith("Content-Length")) {
+                requestContentLength = Integer.parseInt(line.split(": ")[1]); // 길이만 int로 추출
+            }
+        }
+
+        // HTTP 요청 본문 읽기
+        // 요청길이만큼 배열 생성
+        char[] bodyChars = new char[requestContentLength];
+        br.read(bodyChars); // 읽은 문자 개수르 ㄹ반환
+        String requestBody = new String(bodyChars); // char 배열을 문자열로 변환
+
+        // 본문 데이터 파싱
+        String[] params = requestBody.split("&"); // 키-값 쌍을 배열로 저장
         String userId = "", password = "", name = "", email = "";
 
         for (String param : params) {
