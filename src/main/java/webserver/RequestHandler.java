@@ -85,7 +85,7 @@ public class RequestHandler implements Runnable {
                 User user = MemoryUserRepository.getInstance().findUserById(map.get("userId"));
 
 
-                if (user==null||!user.getPassword().equals(map.get("password"))) {
+                if (user == null || !user.getPassword().equals(map.get("password"))) {
                     filePath = Paths.get(WEBAPP + "/user/login_failed.html");
                     body = Files.readAllBytes(filePath);
 
@@ -96,8 +96,24 @@ public class RequestHandler implements Runnable {
                     filePath = Paths.get(WEBAPP + "/index.html");
                     body = Files.readAllBytes(filePath);
                     String redirectUrl = "/index.html";
-                    System.out.println("실행");
                     loginResponse302Header(dos, redirectUrl);
+                }
+            }
+
+            // 요구사항 6번
+            if (url.contains("userList")) {
+                String cookieQuery = getCookieInfo(br);
+                Map<String, String> cookie = HttpRequestUtils.parseQueryParameter(cookieQuery);
+                if (cookie == null || !cookie.get("logined").equals("true")) {
+                    filePath = Paths.get(WEBAPP + "/user/login.html");
+                    body = Files.readAllBytes(filePath);
+                    String redirectUrl = "/login.html";
+                    loginResponse302Header(dos, redirectUrl);
+                }
+                if (cookie.get("logined").equals("true")) {
+                    filePath = Paths.get(WEBAPP + "/user/list.html");
+                    body = Files.readAllBytes(filePath);
+                    String redirectUrl = "/list.html";
                 }
             }
 
@@ -136,7 +152,7 @@ public class RequestHandler implements Runnable {
         try {
             dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
             dos.writeBytes("Location: " + redirectUrl + "\r\n");
-            dos.writeBytes("Set-Cookie: logined=true;"+ "Path=/;"+"\r\n");
+            dos.writeBytes("Set-Cookie: logined=true;" + "Path=/;" + "\r\n");
             dos.writeBytes("\r\n");
 
             dos.flush();
@@ -177,6 +193,23 @@ public class RequestHandler implements Runnable {
                 }
             }
             return IOUtils.readData(br, requestContentLength);
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+        return null;
+    }
+
+    private String getCookieInfo(BufferedReader br) throws IOException {
+        try {
+            while (true) {
+                final String line = br.readLine();
+                if (line.equals("")) {
+                    break;
+                }
+                if (line.startsWith("Cookie")) {
+                    return line.split(": ")[1];
+                }
+            }
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
