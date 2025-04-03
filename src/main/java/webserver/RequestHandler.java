@@ -189,7 +189,23 @@ public class RequestHandler implements Runnable {
         // 파일 존재 확인 후 응답 보냄
         if (file.exists() && !file.isDirectory()) {
             byte[] body = Files.readAllBytes(file.toPath());
-            response200Header(dos, body.length);
+
+            // 파일 확장자에 따른 Content-Type 설정
+            String contentType = "text/html"; // 기본값
+            if (requestPath.endsWith(".css")) {
+                contentType = "text/css";
+            }
+            if (requestPath.endsWith(".js")) {
+                contentType = "application/javascript";
+            }
+            if (requestPath.endsWith(".png")) {
+                contentType = "image/png";
+            }
+            if (requestPath.endsWith(".jpg") || requestPath.endsWith(".jpeg")) {
+                contentType = "image/jpeg";
+            }
+
+            response200Header(dos, body.length, contentType);
             responseBody(dos, body);
         } else {
             // 파일 없을 시 404 응답 보냄
@@ -197,11 +213,12 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) throws IOException{
+    // 요구사항 7 - Content-Type을 동적으로 설정할 수 있도록 수정
+    private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String contentType) throws IOException{
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             // 브라우저가 HTML로 인식하게 함
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
+            dos.writeBytes("Content-Type: " + contentType + ";charset=utf-8\r\n");
             // 파일 크기 명시 -> 브라우저가 어디까지 읽어야 할 지 알 수 있도록
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
