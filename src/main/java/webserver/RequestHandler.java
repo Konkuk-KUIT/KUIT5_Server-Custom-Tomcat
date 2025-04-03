@@ -59,6 +59,8 @@ public class RequestHandler implements Runnable {
             } else if (method.equals("POST") && requestPath.equals("/user/login")) {
                 // 로그인 처리 (요구사항 5)
                 handleUserLogin(br, dos);
+            } else if (requestPath.equals("/user/list")) {
+                handleUserList(br, dos);
             } else if (requestPath.endsWith(".html")){
                 serveStaticFile(requestPath, dos);
             } else {
@@ -71,6 +73,30 @@ public class RequestHandler implements Runnable {
 
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+    private void handleUserList(BufferedReader br, DataOutputStream dos) throws IOException {
+         boolean isLogined = false;
+
+         // 요청 헤더에서 Cookie 확인
+        String line;
+        while (!(line = br.readLine()).isEmpty()) {
+            if (line.startsWith("Cookie:")) {
+                String cookies = line.substring(8); // "Cookie: " 다음부터 "logined=true"를 읽어들이기 위해
+                for (String cookie : cookies.split(";")) {
+                    String[] keyValue = cookie.trim().split("=");
+                    if (keyValue.length == 2 && keyValue[0].equals("logined") && keyValue[1].equals("true")) {
+                        isLogined = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (isLogined) {
+            serveStaticFile("/user_list.html", dos);
+        } else {
+            response302Redirect(dos, "/login.html");
         }
     }
 
