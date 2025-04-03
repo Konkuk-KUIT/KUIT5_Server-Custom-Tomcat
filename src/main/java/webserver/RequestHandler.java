@@ -35,15 +35,15 @@ public class RequestHandler implements Runnable {
             DataOutputStream dos = new DataOutputStream(out);
 
 
-            String requestHeader = getRequestHeader(br);
-            byte[] body = requestHeader.getBytes();
+            String requestFirstLine = getRequestFirstLine(br);
+            byte[] body = requestFirstLine.getBytes();
 
-            StringTokenizer st = new StringTokenizer(requestHeader, " ");
+            StringTokenizer st = new StringTokenizer(requestFirstLine, " ");
             String method = st.nextToken();
             String url = st.nextToken();
 
             //요구사항 1번
-            if(url.equals("/")){
+            if (url.equals("/")) {
                 filePath = Paths.get(WEBAPP + "/index.html");
                 body = Files.readAllBytes(filePath);
             }
@@ -54,7 +54,7 @@ public class RequestHandler implements Runnable {
             }
 
             //요구사항 2번
-            if(url.contains("signup")){
+            if (url.contains("signup") & method.equals("GET")) {
                 String[] str = url.split("\\?");
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(str[1]);
                 User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
@@ -64,25 +64,18 @@ public class RequestHandler implements Runnable {
                 body = Files.readAllBytes(filePath);
             }
 
+            // 요구사항 3번
+            if (method.equals("POST")) {
+                String requestBody = getRequestBody(br);
+                Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
+                User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
+                MemoryUserRepository.getInstance().addUser(user);
+
+                filePath = Paths.get(WEBAPP + "/index.html");
+                body = Files.readAllBytes(filePath);
+            }
 
 
-//            //요구사항 2번
-//            if (info[1].contains("?")) {
-//                StringTokenizer st = new StringTokenizer(info[1], "?");
-//                st.nextToken();
-//                String temp = st.nextToken();
-//                System.out.println(temp);
-//                Map<String, String> map = HttpRequestUtils.parseQueryParameter(temp);
-//                User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
-//                MemoryUserRepository.getInstance().addUser(user);
-//                Paths.get(WEBAPP + "/index.html");
-//            } else {
-//                //요구사항 1번
-//                if(!info[1].contains("html")) {
-//                    filePath = Paths.get(WEBAPP + "/index.html");
-//                }
-//                filePath = Paths.get(WEBAPP + info[1]);
-//            }
 
             response200Header(dos, body.length);
             responseBody(dos, body);
@@ -112,20 +105,8 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private String getRequestHeader(BufferedReader br) throws IOException {
+    private String getRequestFirstLine(BufferedReader br) throws IOException {
         try {
-            //            StringTokenizer st = new StringTokenizer(line, " ");
-//            String[] info = new String[2];
-//            info[0] = st.nextToken();
-//            info[1] = st.nextToken();
-//            if (info[1].equals("/")) {
-//                info[1] = "/index.html";
-//            }
-//            if(!info[1].contains("html")){
-//                return line;
-//            }
-//            //Todo Refactoring
-//            return info;
             return br.readLine();
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
@@ -133,12 +114,25 @@ public class RequestHandler implements Runnable {
         return null;
     }
 
-//    private void test(BufferedReader br) throws IOException {
-//        try {
-//            System.out.println(br.readLine());
-//        }catch (IOException e){
-//
-//        }
-//    }
+    private String getRequestBody(BufferedReader br) throws IOException {
+        try {
+            int requestContentLength = 0;
+            while (true) {
+                final String line = br.readLine();
+                if (line.equals("")) {
+                    break;
+                }
+                // header info
+                if (line.startsWith("Content-Length")) {
+                    requestContentLength = Integer.parseInt(line.split(": ")[1]);
+                }
+            }
+            return IOUtils.readData(br, requestContentLength);
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+        return null;
+    }
+
 
 }
