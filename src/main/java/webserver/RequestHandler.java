@@ -56,8 +56,13 @@ public class RequestHandler implements Runnable {
             // 요구사항 3 - POST 방식으로 회원가입하기
             if (method.equals("POST") && requestPath.equals("/user/create")) {
                 handleUserCreation(br, dos);
-            } else {
+            } else if (method.equals("POST") && requestPath.equals("/user/login")) {
+                // 로그인 처리 (요구사항 5)
+                handleUserLogin(br, dos);
+            } else if (requestPath.endsWith(".html")){
                 serveStaticFile(requestPath, dos);
+            } else {
+                response404(dos);
             }
 
 //            byte[] body = "Hello World".getBytes();
@@ -68,6 +73,50 @@ public class RequestHandler implements Runnable {
             log.log(Level.SEVERE, e.getMessage());
         }
     }
+
+    private void handleUserLogin(BufferedReader br, DataOutputStream dos) throws IOException {
+        // 요청 본문 읽기
+        int requestContentLength = 0;
+        while (true) {
+            final String line = br.readLine();
+            if (line == null || line.isEmpty()) {
+                break;
+            }
+            if (line.startsWith("Content-Length")) {
+                requestContentLength = Integer.parseInt(line.split(": ")[1]);
+            }
+        }
+
+        // 요청 본문 파싱
+        char[] bodyChars = new char[requestContentLength];
+        br.read(bodyChars);
+        String requestBody = new String(bodyChars);
+
+        String userId = null, password = null;
+        for (String param : requestBody.split("&")) {
+            String[] keyValue = param.split("=");
+            if (keyValue.length == 2) {
+                if (keyValue[0].equals("userId")) {
+                    userId = keyValue[1];
+                }
+                if (keyValue[0].equals("password")) {
+                    password = keyValue[1];
+                }
+            }
+        }
+
+        // 유저 검증
+        User user = userRepository.findUserById(userId);
+        if (user != null && user.getPassword().equals(password)) {
+            // 로그인 성공
+            response302RedirectWithCookie(dos, "/index.html", "logined=true");
+        } else {
+            // 로그인 실패
+            response302Redirect(dos, "/logined_failed.html");
+        }
+    }
+
+    // 회원가입 처리 메서드
 
     private void handleUserCreation(BufferedReader br, DataOutputStream dos) throws IOException {
         // 요구사항 3의 request body 읽기 위한 코드
@@ -89,14 +138,12 @@ public class RequestHandler implements Runnable {
         // HTTP 요청 본문 읽기
         // 요청길이만큼 배열 생성
         char[] bodyChars = new char[requestContentLength];
-        br.read(bodyChars); // 읽은 문자 개수르 ㄹ반환
+        br.read(bodyChars); // 읽은 문자 개수를 반환
         String requestBody = new String(bodyChars); // char 배열을 문자열로 변환
 
-        // 본문 데이터 파싱
-        String[] params = requestBody.split("&"); // 키-값 쌍을 배열로 저장
         String userId = "", password = "", name = "", email = "";
 
-        for (String param : params) {
+        for (String param : requestBody.split("&")) {// 키-값 쌍 배열 순회
             String[] keyValue = param.split("=");
             if (keyValue.length == 2) {
                 switch (keyValue[0]) {
@@ -110,11 +157,7 @@ public class RequestHandler implements Runnable {
             response302Redirect(dos, "/index.html");
         }
     }
-
     private void serveStaticFile(String requestPath, DataOutputStream dos) throws IOException {
-        if (requestPath.equals("/")) {
-            requestPath = "/index.html";
-        }
         // 파일 객체 생성
         File file = new File(WEBAPP_PATH + requestPath);
         // 파일 존재 확인 후 응답 보냄
@@ -143,11 +186,6 @@ public class RequestHandler implements Runnable {
 
     // 본문(HTML) 전송
 
-    private void response302Redirect(DataOutputStream dos, String location) throws IOException {
-        dos.writeBytes("HTTP/1.1 302 Found\r\n");
-        dos.writeBytes("Location: " + location + "\r\n");
-        dos.writeBytes("\r\n");
-    }
     private void responseBody(DataOutputStream dos, byte[] body) {
         try {
             // 바이트 데이터를 처음부터 끝까지 읽어서 클라이언트에게 보냄
@@ -156,6 +194,20 @@ public class RequestHandler implements Runnable {
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
+    }
+    private void response302Redirect(DataOutputStream dos, String location) throws IOException {
+        dos.writeBytes("HTTP/1.1 302 Found\r\n");
+        // body(Content-Type, Content-Length) 없이 Location 헤더만 필요
+        dos.writeBytes("Location: " + location + "\r\n");
+        dos.writeBytes("\r\n");
+    }
+
+    // 302 Redirect + Cookie 응답
+    private void response302RedirectWithCookie(DataOutputStream dos, String location, String cookie) throws IOException {
+        dos.writeBytes("HTTP/1.1 302 Found\r\n");
+        dos.writeBytes("Location: " + location + "\r\n");
+        dos.writeBytes("Set-Cookie" + cookie + "\r\n");
+        dos.writeBytes("\r\n");
     }
 
     private void response404(DataOutputStream dos) throws IOException {
