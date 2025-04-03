@@ -1,9 +1,9 @@
 package webserver;
 
 import db.MemoryUserRepository;
-import http.util.HttpRequestUtils;
-import http.util.IOUtils;
+import http.util.*;
 import model.User;
+import model.UserParam;
 
 import java.io.*;
 import java.net.Socket;
@@ -15,6 +15,8 @@ import java.util.logging.Logger;
 public class RequestHandler implements Runnable{
     Socket connection;
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
+//    private static final String INDEX_PATH = "/index.html";
+//    private static final String LOGIN_FAILED_PATH = "/user/login_failed.html";
 
     public RequestHandler(Socket connection) {
         this.connection = connection;
@@ -55,32 +57,32 @@ public class RequestHandler implements Runnable{
             }*/
 
             if (url.equals("/")) {
-                url = "/index.html";
+                url = Route.INDEX.path();
             }
 
             ///요구사항 2: get으로 회원가입 쿼리스트링처리
-            if (method.equals("GET")&&url.startsWith("/user/signup")) {
+            if (HttpMethod.isEqual(method, HttpMethod.GET)&&url.startsWith(Route.SIGN_UP.path())) {
                 String queryString = url.split("\\?")[1];
 
                 // 파싱
                 Map<String, String> params = HttpRequestUtils.parseQueryParameter(queryString);
 
                 User user = new User(
-                        params.get("userId"),
-                        params.get("password"),
-                        params.get("name"),
-                        params.get("email")
+                        params.get(UserParam.USER_ID.key()),
+                        params.get(UserParam.PASSWORD.key()),
+                        params.get(UserParam.NAME.key()),
+                        params.get(UserParam.EMAIL.key())
                 );
 
                 MemoryUserRepository.getInstance().addUser(user);
                 System.out.println("회원가입 성공: " + user.getUserId());
 
-                response302Header(dos, "/index.html");
+                response302Header(dos, Route.INDEX.path());
                 return;
             }
 
             /// 요구사항 3: POST 방식으로 회원가입
-            if (method.equals("POST")&&url.startsWith("/user/signup")) {
+            if (HttpMethod.isEqual(method, HttpMethod.POST)&&url.startsWith(Route.SIGN_UP.path())) {
                 int contentLengthSignin = 0;
                 // 헤더 파싱
                 String headerLine;
@@ -97,17 +99,17 @@ public class RequestHandler implements Runnable{
                 Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
 
                 User user = new User(
-                        params.get("userId"),
-                        params.get("password"),
-                        params.get("name"),
-                        params.get("email")
+                        params.get(UserParam.USER_ID.key()),
+                        params.get(UserParam.PASSWORD.key()),
+                        params.get(UserParam.NAME.key()),
+                        params.get(UserParam.EMAIL.key())
                 );
 
                 MemoryUserRepository.getInstance().addUser(user);
                 System.out.println("POST 회원가입 성공: " + user.getUserId());
 
                 /// 요구사항 4: 302 status code 적용
-                response302Header(dos, "/index.html");
+                response302Header(dos, Route.INDEX.path());
                 return;
             }
 
@@ -115,7 +117,7 @@ public class RequestHandler implements Runnable{
 
 
             /// 요구사항 5: 로그인하기
-            if (method.equals("POST") && url.equals("/user/login")) {
+            if (HttpMethod.isEqual(method, HttpMethod.POST) && url.equals(Route.LOGIN.path())) {
                 int contentLengthSignin = 0;
                 // 헤더 파싱
                 String headerLine;
@@ -131,19 +133,19 @@ public class RequestHandler implements Runnable{
                 // 파싱
                 Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
 
-                String userId = params.get("userId");
-                String password = params.get("password");
+                String userId = params.get(UserParam.USER_ID.key());
+                String password = params.get(UserParam.PASSWORD.key());
 
                 // 회원 조회
                 User user = MemoryUserRepository.getInstance().findUserById(userId);
 
                 if (user != null && user.getPassword().equals(password)) {
                     // 로그인 성공 → index.html로 리다이렉트, 쿠키 설정
-                    response302HeaderWithCookie(dos, "/index.html", "logined=true");
+                    response302HeaderWithCookie(dos, Route.INDEX.path(), "logined=true");
                     System.out.println("로그인 성공: " + userId);
                 } else {
                     // 로그인 실패 → login_failed.html로 리다이렉트
-                    response302Header(dos, "/user/login_failed.html");
+                    response302Header(dos, Route.LOGIN_FAILED.path());
                     System.out.println("로그인 실패: " + userId);
                 }
 
@@ -151,13 +153,13 @@ public class RequestHandler implements Runnable{
             }
 
             /// 요구사항 6: 사용자 목록 출력
-            if (url.equals("/user/userList")) {
+            if (url.equals(Route.USER_LIST.path())) {
                 boolean isLogined = false;
 
                 // 헤더에서 Cookie 파싱
                 String headerLine;
                 while (!(headerLine = br.readLine()).equals("")) {
-                    if (headerLine.startsWith("Cookie:")) {
+                    if (headerLine.startsWith(HttpHeader.COOKIE.key())) {
                         String cookies = headerLine.split(":")[1].trim();
                         String[] cookieArray = cookies.split(";");
 
@@ -172,9 +174,9 @@ public class RequestHandler implements Runnable{
                 }
 
                 if (isLogined) {
-                    url = "/user/list.html";
+                    url = Route.LIST.path();
                 } else {
-                    response302Header(dos, "/user/login.html");
+                    response302Header(dos, Route.LOGIN.path());
                     return;
                 }
             }
@@ -202,8 +204,8 @@ public class RequestHandler implements Runnable{
     /// 요구사항 4: 302 status code 적용
     private void response302Header(DataOutputStream dos, String path) {
         try {
-            dos.writeBytes("HTTP/1.1 302 Found\r\n");
-            dos.writeBytes("Location: " + path + "\r\n");
+            dos.writeBytes("HTTP/1.1"+ HttpStatus.NOT_FOUND +"\r\n");
+            dos.writeBytes(HttpHeader.LOCATION+ ": " + path + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
@@ -212,9 +214,9 @@ public class RequestHandler implements Runnable{
 
     private void response404Header(DataOutputStream dos, int lengthOfBodyContent) {
         try {
-            dos.writeBytes("HTTP/1.1 404 Not Found\r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("HTTP/1.1"+ HttpStatus.NOT_FOUND +"\r\n");
+            dos.writeBytes(HttpHeader.CONTENT_TYPE+": " +"text/html;charset=utf-8\r\n");
+            dos.writeBytes(HttpHeader.CONTENT_LENGTH+": " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
@@ -223,9 +225,9 @@ public class RequestHandler implements Runnable{
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String contentType) {
         try {
-            dos.writeBytes("HTTP/1.1 200 OK\r\n");
-            dos.writeBytes("Content-Type: " + contentType + ";charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("HTTP/1.1"+ HttpStatus.OK +"\r\n");
+            dos.writeBytes(HttpHeader.CONTENT_TYPE+": " + contentType + ";charset=utf-8\r\n");
+            dos.writeBytes(HttpHeader.CONTENT_LENGTH+": " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
@@ -242,18 +244,14 @@ public class RequestHandler implements Runnable{
     }
 
     private String getContentType(String filePath) {
-        if (filePath.endsWith(".html")) return "text/html";
-        if (filePath.endsWith(".css")) return "text/css";
-        if (filePath.endsWith(".js")) return "application/javascript";
-        if (filePath.endsWith(".png")) return "image/png";
-        if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) return "image/jpeg";
-        return "application/octet-stream";
+        return ContentType.fromFilePath(filePath);
     }
+    
     private void response302HeaderWithCookie(DataOutputStream dos, String path, String cookie) {
         try {
-            dos.writeBytes("HTTP/1.1 302 Found\r\n");
-            dos.writeBytes("Location: " + path + "\r\n");
-            dos.writeBytes("Set-Cookie: " + cookie + "\r\n");
+            dos.writeBytes("HTTP/1.1"+ HttpStatus.FOUND +"\r\n");
+            dos.writeBytes(HttpHeader.LOCATION+ ": " + path + "\r\n");
+            dos.writeBytes(HttpHeader.SET_COOKIE+": " + cookie + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
