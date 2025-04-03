@@ -15,9 +15,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class RequestHandler implements Runnable {
-    //    ../../../../webapp/
+
     String WEBAPP = "/Users/jonnykim/KUITMission/KUIT5_Server-Custom-Tomcat/webapp";
-    // 상대위치로 변환
     Path filePath;
 
     Socket connection;
@@ -65,7 +64,7 @@ public class RequestHandler implements Runnable {
             }
 
             // 요구사항 3번
-            if (method.equals("POST")) {
+            if (url.contains("signup") & method.equals("POST")) {
                 String requestBody = getRequestBody(br);
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
                 User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
@@ -73,9 +72,34 @@ public class RequestHandler implements Runnable {
 
                 filePath = Paths.get(WEBAPP + "/index.html");
                 body = Files.readAllBytes(filePath);
+
+                //요구사항 4번
+                String redirectUrl = "/../index.html";
+                response302Header(dos, redirectUrl);
             }
 
+            // 요구사항 5번
+            if (url.contains("login") & method.equals("POST")) {
+                String requestBody = getRequestBody(br);
+                Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
+                User user = MemoryUserRepository.getInstance().findUserById(map.get("userId"));
 
+
+                if (user==null||!user.getPassword().equals(map.get("password"))) {
+                    filePath = Paths.get(WEBAPP + "/user/login_failed.html");
+                    body = Files.readAllBytes(filePath);
+
+                    String redirectUrl = "/user/login_failed.html";
+                    response302Header(dos, redirectUrl);
+                }
+                if (user.getPassword().equals(map.get("password"))) {
+                    filePath = Paths.get(WEBAPP + "/index.html");
+                    body = Files.readAllBytes(filePath);
+                    String redirectUrl = "/index.html";
+                    System.out.println("실행");
+                    loginResponse302Header(dos, redirectUrl);
+                }
+            }
 
             response200Header(dos, body.length);
             responseBody(dos, body);
@@ -91,6 +115,31 @@ public class RequestHandler implements Runnable {
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+    private void response302Header(DataOutputStream dos, String redirectUrl) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
+            dos.writeBytes("Location: " + redirectUrl + "\r\n");
+            dos.writeBytes("\r\n");
+
+            dos.flush();
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+    private void loginResponse302Header(DataOutputStream dos, String redirectUrl) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
+            dos.writeBytes("Location: " + redirectUrl + "\r\n");
+            dos.writeBytes("Set-Cookie: logined=true;"+ "Path=/;"+"\r\n");
+            dos.writeBytes("\r\n");
+
+            dos.flush();
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
