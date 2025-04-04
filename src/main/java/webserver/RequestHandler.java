@@ -1,9 +1,14 @@
 package webserver;
 
+import com.sun.net.httpserver.HttpContext;
 import db.MemoryUserRepository;
 import http.util.HttpRequestUtils;
 import http.util.IOUtils;
 import model.User;
+import webserver.controller.ForwardController;
+import webserver.controller.HomeController;
+import webserver.controller.HttpController;
+import webserver.controller.SignUpController;
 
 import java.io.*;
 import java.net.Socket;
@@ -25,8 +30,9 @@ public class RequestHandler implements Runnable {
 
     Socket connection;
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
+    private HttpController controller = new ForwardController();
 
-    public RequestHandler(Socket connection) {
+    public RequestHandler(Socket connection){
         this.connection = connection;
     }
 
@@ -42,43 +48,46 @@ public class RequestHandler implements Runnable {
             HttpResponse httpResponse = HttpResponse.from(dos);
 
 
+            byte[] body = null;
 
-            String requestFirstLine = httpRequest.getRequestFirstLine();
-            byte[] body = requestFirstLine.getBytes();
-
-            StringTokenizer st = new StringTokenizer(requestFirstLine, " ");
-            String method = st.nextToken();
-            String url = st.nextToken();
 
             String contentType = null;
 
             //요구사항 1번
-            if (url.equals(ROOT.getPath())) {
+            if (httpRequest.getUrl().equals(ROOT.getPath())) {
                 filePath = Paths.get(INDEX_HTML.getPath());
                 body = Files.readAllBytes(filePath);
                 httpResponse.response302Header("/index.html");
+                contentType = "text/html";
 
+//                controller = new HomeController();
             }
 
-            if (url.endsWith(HTML.getValue())) {
-                filePath = Paths.get(WEBAPP + url);
+            if (httpRequest.getMethod().equals("GET")&&httpRequest.getUrl().endsWith(HTML.getValue())) {
+                filePath = Paths.get(WEBAPP + httpRequest.getUrl());
                 body = Files.readAllBytes(filePath);
                 contentType = "text/html";
+
+//                controller = new ForwardController();
             }
 
+
             //요구사항 2번
-            if (url.contains("signup") & method.equals(GET.getMethod())) {
-                String[] str = url.split("\\?");
+            if (httpRequest.getUrl().contains("signup") & httpRequest.getMethod().equals(GET.getMethod())) {
+                String[] str = httpRequest.getUrl().split("\\?");
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(str[1]);
                 User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
                 MemoryUserRepository.getInstance().addUser(user);
 
+                contentType = "text/html";
                 filePath = Paths.get(WEBAPP + "/index.html");
                 body = Files.readAllBytes(filePath);
+
+//                controller = new SignUpController();
             }
 
             // 요구사항 3번
-            if (url.contains("signup") & method.equals(POST.getMethod())) {
+            if (httpRequest.getUrl().contains("signup") & httpRequest.getMethod().equals(POST.getMethod())) {
                 String requestBody = httpRequest.getRequestBody();
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
                 User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
@@ -89,10 +98,17 @@ public class RequestHandler implements Runnable {
 
                 //요구사항 4번
                 httpResponse.response302Header("/index.html");
+
+//                controller = new SignUpController();
             }
 
+/*            // 2,3,4 번 통합
+            if(httpRequest.getUrl().contains("signup")){
+                controller = new SignUpController();
+            }*/
+
             // 요구사항 5번
-            if (url.contains("login") & method.equals(POST.getMethod())) {
+            if (httpRequest.getUrl().contains("login") & httpRequest.getMethod().equals(POST.getMethod())) {
                 String requestBody = httpRequest.getRequestBody();
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
                 User user = MemoryUserRepository.getInstance().findUserById(map.get("userId"));
@@ -114,7 +130,7 @@ public class RequestHandler implements Runnable {
             }
 
             // 요구사항 6번
-            if (url.contains("userList")) {
+            if (httpRequest.getUrl().contains("userList")) {
                 String cookieQuery = httpRequest.getCookieInfo();
                 Map<String, String> cookie = HttpRequestUtils.parseQueryParameter(cookieQuery);
                 if (cookieQuery == null || !cookie.get("logined").equals("true")) {
@@ -132,12 +148,12 @@ public class RequestHandler implements Runnable {
             }
 
             // 요구사항 7번
-            if (url.endsWith(ContentType.CSS.getValue())) {
+            if (httpRequest.getUrl().endsWith(ContentType.CSS.getValue())) {
                 contentType = "text/css";
                 filePath = Paths.get(STYLE_CSS.getPath());
                 body = Files.readAllBytes(filePath);
             }
-            if (url.endsWith(ContentType.JS.getValue())) {
+            if (httpRequest.getUrl().endsWith(ContentType.JS.getValue())) {
                 contentType = "text/javascript";
                 filePath = Paths.get(WEBAPP + "/js/script.js");
                 body = Files.readAllBytes(filePath);
@@ -146,24 +162,12 @@ public class RequestHandler implements Runnable {
             httpResponse.response200Header(body.length, contentType);
             httpResponse.responseBody(body);
 
+//            controller.execute(httpRequest, httpResponse);
+
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 }

@@ -15,9 +15,9 @@ public enum URL {
 
     LOGIN_HTML(USER.getPath()+"/login.html"),
     LIST_HTML(USER.getPath()+"/list.html"),
-    LOGIN_FAILED_HTML(USER.getPath()+"/login-failed.html"),
+    LOGIN_FAILED_HTML(USER.getPath()+"/login_failed.html"),
 
-    STYLE_CSS(CSS.getPath()+"/style.css"),
+    STYLE_CSS(CSS.getPath()+"/styles.css"),
     SCRIPT_JS(JS.getPath()+"/script.js");
     private final String path;
 
