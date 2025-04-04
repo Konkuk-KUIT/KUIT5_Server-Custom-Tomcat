@@ -9,10 +9,12 @@ import java.nio.file.Files;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import static model.Enum.*;
+
 public class RequestHandler implements Runnable {
     Socket connection;
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
-    private static final String WEBAPP_PATH = "./webapp";
+//    private static final String WEBAPP_PATH = "./webapp";
     private final MemoryUserRepository userRepository = MemoryUserRepository.getInstance();
 
     public RequestHandler(Socket connection) {
@@ -43,7 +45,7 @@ public class RequestHandler implements Runnable {
             String method = tokens[0];
             String requestPath = tokens[1];
             if (requestPath.equals("/")) {
-                requestPath = "/index.html";
+                requestPath = INDEX.getString();
             }
 
 //            // 요구사항 2 - 유저 생성인지 index.html 파일 띄울지 결정
@@ -56,12 +58,16 @@ public class RequestHandler implements Runnable {
             // 요구사항 3 - POST 방식으로 회원가입하기
             if (method.equals("POST") && requestPath.equals("/user/create")) {
                 handleUserCreation(br, dos);
-            } else if (method.equals("POST") && requestPath.equals("/user/login")) {
-                // 로그인 처리 (요구사항 5)
+            }
+            // 로그인 처리 (요구사항 5)
+            if (method.equals("POST") && requestPath.equals("/user/login")) {
+
                 handleUserLogin(br, dos);
-            } else if (requestPath.equals("/user/list")) {
+            }
+            if (requestPath.equals("/user/list")) {
                 handleUserList(br, dos);
-            } else if (requestPath.endsWith(".html")){
+            }
+            if (requestPath.endsWith(".html")){
                 serveStaticFile(requestPath, dos);
             } else {
                 response404(dos);
@@ -94,9 +100,9 @@ public class RequestHandler implements Runnable {
             }
         }
         if (isLogined) {
-            serveStaticFile("/user_list.html", dos);
+            serveStaticFile(USER_LIST_PAGE.getString(), dos);
         } else {
-            response302Redirect(dos, "/login.html");
+            response302Redirect(dos, LOGIN_PAGE.getString());
         }
     }
 
@@ -135,10 +141,10 @@ public class RequestHandler implements Runnable {
         User user = userRepository.findUserById(userId);
         if (user != null && user.getPassword().equals(password)) {
             // 로그인 성공
-            response302RedirectWithCookie(dos, "/index.html", "logined=true");
+            response302RedirectWithCookie(dos, INDEX.getString(), "logined=true");
         } else {
             // 로그인 실패
-            response302Redirect(dos, "/logined_failed.html");
+            response302Redirect(dos, LOGIN_FAILED_PAGE.getString());
         }
     }
 
@@ -180,7 +186,7 @@ public class RequestHandler implements Runnable {
                 }
             }
             userRepository.addUser(new User(userId, password, name, email));
-            response302Redirect(dos, "/index.html");
+            response302Redirect(dos, INDEX.getString());
         }
     }
     private void serveStaticFile(String requestPath, DataOutputStream dos) throws IOException {
