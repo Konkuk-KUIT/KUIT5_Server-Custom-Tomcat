@@ -30,31 +30,11 @@ public class RequestHandler implements Runnable{
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
             DataOutputStream dos = new DataOutputStream(out);
 
-            // 요청 라인 읽기
-            String requestLine = br.readLine();
-            if (requestLine == null || requestLine.isEmpty()) return;
+            HttpRequest request = HttpRequest.from(br);
 
-            log.info("Request Line: " + requestLine);
-
-            // method, url 추출
-            String[] tokens = requestLine.split(" ");
-            HttpMethod method = HttpMethod.from(tokens[0]);
-            String url = tokens[1];
-
-            int contentLength = 0;
-
-            // Header 파싱
-            List<String> headers = new ArrayList<>();
-            // BufferedReader는 한 번 읽고 나면 커서가 앞으로 움직여서 다시 읽기 어려움
-            // 그러므로 헤더 먼저 모두 읽고 저장해두기
-
-            String line;
-            while (!(line = br.readLine()).equals("")) {
-                headers.add(line);
-                if (line.startsWith("Content-Length")) {
-                    contentLength = Integer.parseInt(line.split(": ")[1]);
-                }
-            }
+            HttpMethod method = HttpMethod.from(request.getMethod());
+            String url = request.getPath();
+            Map<String, String> headers = request.getHeaderLine(); // or Map<String, String> headers = request.getHeaders();
 
             if (url.equals(UrlPath.ROOT.getPath())) {
                 url = UrlPath.INDEX.getPath();
@@ -66,7 +46,7 @@ public class RequestHandler implements Runnable{
                 case SIGNUP:
                     if (method == HttpMethod.POST) {
                         log.info("회원가입 선택");
-                        handleSignUp(br, dos, contentLength);
+                        handleSignUp(request.getBody(), dos); // 바디가 이미 정리된 상태이므로, String 값을 바로 넘겨줌.
                         return;
                     }
                     break;
@@ -74,15 +54,15 @@ public class RequestHandler implements Runnable{
                 case LOGIN:
                     if (method == HttpMethod.POST) {
                         log.info("로그인 선택");
-                        handleLogin(br, dos, contentLength);
+                        handleLogin(request.getBody(), dos);
                         return;
                     }
                     break;
 
                 case USER_LIST:
-                    if (!isLoggedIn(headers)) {
+                    if (!isLoggedIn(request.getHeaderLine())) { // 쿠키 검사
                         log.info("로그인하지 않은 사용자의 userList 접근");
-                        response302Header(dos, UrlPath.LOGIN_FAILED.getPath());
+                        response302Header(dos, UrlPath.LOGIN_HTML.getPath());
                     } else {
                         log.info("로그인한 사용자의 userList 접근");
                         response302Header(dos, UrlPath.USER_LIST_HTML.getPath());
@@ -95,13 +75,14 @@ public class RequestHandler implements Runnable{
                         return;
                     }
 
-                    // 기본 정적 파일 처리
                     handleStaticResource(url, dos);
             }
+
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
     }
+
 
     private void handleCssRequest(String url, DataOutputStream dos) throws IOException{
         log.info("css 파일 요청 들어옴");
@@ -135,11 +116,7 @@ public class RequestHandler implements Runnable{
         }
     }
 
-    private void handleLogin(BufferedReader br, DataOutputStream dos, int contentLength) throws IOException {
-        char[] bodyData = new char[contentLength];
-        br.read(bodyData, 0, contentLength);
-        String body = new String(bodyData);
-
+    private void handleLogin(String body, DataOutputStream dos) throws IOException {
         Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
 
         User user = MemoryUserRepository.getInstance().findUserById(params.get(UserQueryKey.USER_ID.getKey()));
@@ -147,26 +124,22 @@ public class RequestHandler implements Runnable{
         // Todo 검증 로직 추후에 다 따로 빼기
         if (user == null) { // 존재하지 않는 회원, 로그인 실패
             log.info("user login failed");
-            response302Header(dos, "/user/login_failed.html");
+            response302Header(dos, UrlPath.LOGIN_FAILED.getPath());
             return;
         }
 
-        if(!user.getPassword().equals(params.get("password"))) { // 비밀번호 불일치, 로그인 실패
+        if(!user.getPassword().equals(params.get(UserQueryKey.PASSWORD.getKey()))) { // 비밀번호 불일치, 로그인 실패
             log.info("user login failed");
-            response302Header(dos, "/user/login_failed.html");
+            response302Header(dos, UrlPath.LOGIN_FAILED.getPath());
             return;
         }
 
-        response302Header(dos, "/index.html", "logined=true");
+        response302Header(dos, UrlPath.INDEX.getPath(), "logined=true");
 
         log.info("user login success!: " + user.getUserId());
     }
 
-    private void handleSignUp(BufferedReader br, DataOutputStream dos, int contentLength) throws IOException {
-        char[] bodyData = new char[contentLength];
-        br.read(bodyData, 0, contentLength);
-        String body = new String(bodyData);
-
+    private void handleSignUp(String body, DataOutputStream dos) {
         Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
 
         User user = new User(
@@ -182,16 +155,17 @@ public class RequestHandler implements Runnable{
         response302Header(dos, "/index.html");
     }
 
-    private boolean isLoggedIn(List<String> headers) {
-        for (String line : headers) {
-            if (line.startsWith("Cookie:")) {
-                String cookieLine = line.substring("Cookie:".length()).trim();
-                Map<String, String> cookies = HttpRequestUtils.parseCookies(cookieLine);
-                return "true".equals(cookies.get("logined"));
-            }
+    private boolean isLoggedIn(Map<String, String> headers) {
+        String cookieLine = headers.get("Cookie");
+        if (cookieLine == null) {
+            return false;
         }
-        return false; // Cookie가 없거나 logined=true가 아닌 경우
+
+        Map<String, String> cookies = HttpRequestUtils.parseCookies(cookieLine);
+        return "true".equals(cookies.get("logined"));
     }
+
+
 
     // Todo response header 클래스 따로 빼기
     private void response302Header(DataOutputStream dos, String path, String cookie) { // 쿠키 오버로딩
