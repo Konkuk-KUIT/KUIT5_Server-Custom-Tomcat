@@ -25,8 +25,11 @@ public class WebServer {
 
             // 연결 소켓
             Socket connection;
+            // ServerSock welcomSocket이 연결되면 welcomeSocket.accpet()로 연결소켓 반환
             while ((connection = welcomeSocket.accept()) != null) {
                 // 스레드에 작업 전달
+                // RequestHandler는 Runnable을 구현했기 때문에 submit()에 넘길 수 있다.
+                // ExecutorService는 내부적으로 스레드 풀을 가지고 있어서, 요청마다 새로운 스레드에서 run()을 호출하는 것이 가능 --> 장점이 무엇?
                 service.submit(new RequestHandler(connection));
             }
         }
