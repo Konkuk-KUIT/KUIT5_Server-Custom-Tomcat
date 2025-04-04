@@ -1,0 +1,7 @@
+POST /user/signup HTTP/1.1
+Host: localhost
+Connection: keep-alive
+Content-Length: 36
+Accept: */*
+
+userId=user1&password=pw1&name=name1
