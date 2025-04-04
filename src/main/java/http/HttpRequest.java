@@ -1,5 +1,7 @@
 package http;
 
+import http.httpEnum.HttpHeader;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,7 +40,7 @@ public class HttpRequest {
                 headers.put(headerTokens[0], headerTokens[1]);
             }
 
-            if (line.startsWith("Content-Length")) {
+            if (line.startsWith(HttpHeader.CONTENT_LENGTH.getKey())) {
                 contentLength = Integer.parseInt(headerTokens[1]);
             }
         }
@@ -54,11 +56,8 @@ public class HttpRequest {
     }
 
 
-    // Getter들 필요에 따라 추가
     public String getMethod() { return method; }
     public String getPath() { return path; }
-    public String getVersion() { return version; }
-    public String getHeader(String key) { return headers.get(key); }
     public Map<String, String> getHeaderLine(){ return headers; }
     public String getBody() { return body; }
 }

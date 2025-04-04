@@ -1,4 +1,4 @@
-package http;
+package http.httpEnum;
 
 public enum UrlPath {
     ROOT("/"),
@@ -6,6 +6,7 @@ public enum UrlPath {
     LOGIN("/user/login"),
     LOGIN_HTML("/user/login.html"),
     SIGNUP("/user/signup"),
+    SIGNUP_HTML("user/form.html"),
     LOGIN_FAILED("/user/login_failed.html"),
     USER_LIST("/user/userList"),
     USER_LIST_HTML("/user/list.html"),

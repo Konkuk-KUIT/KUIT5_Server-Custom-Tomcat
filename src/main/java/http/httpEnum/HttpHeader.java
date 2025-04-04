@@ -1,4 +1,4 @@
-package http;
+package http.httpEnum;
 
 public enum HttpHeader {
     CONTENT_TYPE("Content-Type"),

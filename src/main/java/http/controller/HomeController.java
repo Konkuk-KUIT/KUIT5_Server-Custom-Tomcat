@@ -2,7 +2,7 @@ package http.controller;
 
 import http.HttpRequest;
 import http.HttpResponse;
-import http.UrlPath;
+import http.httpEnum.UrlPath;
 
 import java.io.IOException;
 

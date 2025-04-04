@@ -2,9 +2,8 @@ package http.controller;
 
 import http.HttpRequest;
 import http.HttpResponse;
-import http.UrlPath;
+import http.httpEnum.UrlPath;
 import http.util.HttpRequestUtils;
-import webserver.RequestHandler;
 
 import java.io.IOException;
 import java.util.Map;

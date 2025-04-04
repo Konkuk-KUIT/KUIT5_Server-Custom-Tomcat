@@ -1,5 +1,8 @@
 package http;
 
+import http.httpEnum.HttpHeader;
+import http.httpEnum.HttpStatus;
+
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;

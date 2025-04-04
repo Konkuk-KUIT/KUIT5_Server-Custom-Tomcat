@@ -3,8 +3,10 @@ package http.controller;
 import db.MemoryUserRepository;
 import http.HttpRequest;
 import http.HttpResponse;
-import http.UrlPath;
+import http.httpEnum.UrlPath;
+import http.httpEnum.UserQueryKey;
 import http.util.HttpRequestUtils;
+import http.util.ValidationUtils;
 import model.User;
 
 import java.io.IOException;
@@ -17,9 +19,17 @@ public class LoginController implements Controller {
     @Override
     public void execute(HttpRequest request, HttpResponse response) throws IOException {
         Map<String, String> params = HttpRequestUtils.parseQueryParameter(request.getBody());
-        User user = MemoryUserRepository.getInstance().findUserById(params.get("userId"));
+        String userId = params.get(UserQueryKey.USER_ID.getKey());
+        String password = params.get(UserQueryKey.PASSWORD.getKey());
 
-        if (user == null || !user.getPassword().equals(params.get("password"))) {
+        if (ValidationUtils.isAnyBlank(userId, password)) { // 비어있는 값 존재하면 다시 입력 받도록 리턴
+            response.redirect(UrlPath.LOGIN_FAILED.getPath());
+            return;
+        }
+
+        User user = MemoryUserRepository.getInstance().findUserById(userId);
+
+        if (user == null || !user.getPassword().equals(password)) {
             log.info("user login failed");
             response.redirect(UrlPath.LOGIN_FAILED.getPath());
             return;
