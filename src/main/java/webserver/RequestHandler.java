@@ -41,7 +41,7 @@ public class RequestHandler implements Runnable {
             DataOutputStream dos = new DataOutputStream(out);
 
 
-            String requestFirstLine = getRequestFirstLine(br);
+            String requestFirstLine = httpRequest.getRequestFirstLine();
             byte[] body = requestFirstLine.getBytes();
 
             StringTokenizer st = new StringTokenizer(requestFirstLine, " ");
@@ -77,7 +77,7 @@ public class RequestHandler implements Runnable {
 
             // 요구사항 3번
             if (url.contains("signup") & method.equals(POST.getMethod())) {
-                String requestBody = getRequestBody(br);
+                String requestBody = httpRequest.getRequestBody();
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
                 User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
                 MemoryUserRepository.getInstance().addUser(user);
@@ -92,7 +92,7 @@ public class RequestHandler implements Runnable {
 
             // 요구사항 5번
             if (url.contains("login") & method.equals(POST.getMethod())) {
-                String requestBody = getRequestBody(br);
+                String requestBody = httpRequest.getRequestBody();
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
                 User user = MemoryUserRepository.getInstance().findUserById(map.get("userId"));
 
@@ -114,7 +114,7 @@ public class RequestHandler implements Runnable {
 
             // 요구사항 6번
             if (url.contains("userList")) {
-                String cookieQuery = getCookieInfo(br);
+                String cookieQuery = httpRequest.getCookieInfo();
                 Map<String, String> cookie = HttpRequestUtils.parseQueryParameter(cookieQuery);
                 if (cookieQuery == null || !cookie.get("logined").equals("true")) {
                     filePath = Paths.get(LOGIN_HTML.getPath());
@@ -206,51 +206,10 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private String getRequestFirstLine(BufferedReader br) throws IOException {
-        try {
-            return br.readLine();
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-        return null;
-    }
 
-    private String getRequestBody(BufferedReader br) throws IOException {
-        try {
-            int requestContentLength = 0;
-            while (true) {
-                final String line = br.readLine();
-                if (line.equals("")) {
-                    break;
-                }
-                // header info
-                if (line.startsWith("Content-Length")) {
-                    requestContentLength = Integer.parseInt(line.split(": ")[1]);
-                }
-            }
-            return IOUtils.readData(br, requestContentLength);
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-        return null;
-    }
 
-    private String getCookieInfo(BufferedReader br) throws IOException {
-        try {
-            while (true) {
-                final String line = br.readLine();
-                if (line.equals("")) {
-                    break;
-                }
-                if (line.startsWith("Cookie")) {
-                    return line.split(": ")[1];
-                }
-            }
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-        return null;
-    }
+
+
 
 
 }
