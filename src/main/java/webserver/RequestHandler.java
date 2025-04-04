@@ -8,15 +8,19 @@ import model.User;
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.*;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import static webserver.ContentType.*;
+import static webserver.HttpMethod.*;
+import static webserver.URL.*;
+
+
 public class RequestHandler implements Runnable {
 
-    String WEBAPP = "/Users/jonnykim/KUITMission/KUIT5_Server-Custom-Tomcat/webapp";
+    String WEBAPP = URL.WEBAPP.getPath();
     Path filePath;
 
     Socket connection;
@@ -31,6 +35,9 @@ public class RequestHandler implements Runnable {
         log.log(Level.INFO, "New Client Connect! Connected IP : " + connection.getInetAddress() + ", Port : " + connection.getPort());
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
+
+            HttpRequest httpRequest = HttpRequest.from(br);
+
             DataOutputStream dos = new DataOutputStream(out);
 
 
@@ -41,19 +48,24 @@ public class RequestHandler implements Runnable {
             String method = st.nextToken();
             String url = st.nextToken();
 
+            String contentType = null;
+
             //요구사항 1번
-            if (url.equals("/")) {
-                filePath = Paths.get(WEBAPP + "/index.html");
+            if (url.equals(ROOT.getPath())) {
+                filePath = Paths.get(INDEX_HTML.getPath());
                 body = Files.readAllBytes(filePath);
+                response302Header(dos, "/index.html");
+
             }
 
-            if (url.contains("html")) {
+            if (url.endsWith(HTML.getValue())) {
                 filePath = Paths.get(WEBAPP + url);
                 body = Files.readAllBytes(filePath);
+                contentType = "text/html";
             }
 
             //요구사항 2번
-            if (url.contains("signup") & method.equals("GET")) {
+            if (url.contains("signup") & method.equals(GET.getMethod())) {
                 String[] str = url.split("\\?");
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(str[1]);
                 User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
@@ -64,36 +76,36 @@ public class RequestHandler implements Runnable {
             }
 
             // 요구사항 3번
-            if (url.contains("signup") & method.equals("POST")) {
+            if (url.contains("signup") & method.equals(POST.getMethod())) {
                 String requestBody = getRequestBody(br);
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
                 User user = new User(map.get("userId"), map.get("password"), map.get("name"), map.get("email"));
                 MemoryUserRepository.getInstance().addUser(user);
 
-                filePath = Paths.get(WEBAPP + "/index.html");
+                filePath = Paths.get(INDEX_HTML.getPath());
                 body = Files.readAllBytes(filePath);
 
                 //요구사항 4번
-                String redirectUrl = "/../index.html";
+                String redirectUrl = "/index.html";
                 response302Header(dos, redirectUrl);
             }
 
             // 요구사항 5번
-            if (url.contains("login") & method.equals("POST")) {
+            if (url.contains("login") & method.equals(POST.getMethod())) {
                 String requestBody = getRequestBody(br);
                 Map<String, String> map = HttpRequestUtils.parseQueryParameter(requestBody);
                 User user = MemoryUserRepository.getInstance().findUserById(map.get("userId"));
 
 
                 if (user == null || !user.getPassword().equals(map.get("password"))) {
-                    filePath = Paths.get(WEBAPP + "/user/login_failed.html");
+                    filePath = Paths.get(LOGIN_FAILED_HTML.getPath());
                     body = Files.readAllBytes(filePath);
 
                     String redirectUrl = "/user/login_failed.html";
                     response302Header(dos, redirectUrl);
                 }
                 if (user.getPassword().equals(map.get("password"))) {
-                    filePath = Paths.get(WEBAPP + "/index.html");
+                    filePath = Paths.get(INDEX_HTML.getPath());
                     body = Files.readAllBytes(filePath);
                     String redirectUrl = "/index.html";
                     loginResponse302Header(dos, redirectUrl);
@@ -104,22 +116,46 @@ public class RequestHandler implements Runnable {
             if (url.contains("userList")) {
                 String cookieQuery = getCookieInfo(br);
                 Map<String, String> cookie = HttpRequestUtils.parseQueryParameter(cookieQuery);
-                if (cookie == null || !cookie.get("logined").equals("true")) {
-                    filePath = Paths.get(WEBAPP + "/user/login.html");
+                if (cookieQuery == null || !cookie.get("logined").equals("true")) {
+                    filePath = Paths.get(LOGIN_HTML.getPath());
+                    String redirectUrl = "/user/login.html";
+                    response302Header(dos, redirectUrl);
+
                     body = Files.readAllBytes(filePath);
-                    String redirectUrl = "/login.html";
-                    loginResponse302Header(dos, redirectUrl);
                 }
                 if (cookie.get("logined").equals("true")) {
-                    filePath = Paths.get(WEBAPP + "/user/list.html");
+                    filePath = Paths.get(LIST_HTML.getPath());
                     body = Files.readAllBytes(filePath);
                     String redirectUrl = "/list.html";
                 }
             }
 
-            response200Header(dos, body.length);
+            // 요구사항 7번
+            if (url.endsWith(ContentType.CSS.getValue())) {
+                contentType = "text/css";
+                filePath = Paths.get(STYLE_CSS.getPath());
+                body = Files.readAllBytes(filePath);
+            }
+            if (url.endsWith(ContentType.JS.getValue())) {
+                contentType = "text/javascript";
+                filePath = Paths.get(WEBAPP + "/js/script.js");
+                body = Files.readAllBytes(filePath);
+            }
+
+            response200Header(dos, body.length, contentType);
             responseBody(dos, body);
 
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+    private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String contentType) {
+        try {
+            dos.writeBytes("HTTP/1.1 200 OK \r\n");
+            dos.writeBytes("Content-Type: " + contentType + ";charset=utf-8\r\n");
+            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
