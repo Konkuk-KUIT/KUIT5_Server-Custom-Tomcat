@@ -1,5 +1,9 @@
 package model;
 
+import data.UserData;
+import db.MemoryUserRepository;
+
+import java.util.Map;
 import java.util.Objects;
 
 public class User {
@@ -42,5 +46,15 @@ public class User {
     @Override
     public int hashCode() {
         return Objects.hash(getUserId(), getPassword(), getName(), getEmail());
+    }
+
+    public static User userCheck(Map<String, String> params){
+        String userId = params.get(UserData.ID.getData());
+        String password = params.get(UserData.Password.getData());
+        String name = params.get(UserData.Username.getData());
+        String email = params.get(UserData.Email.getData());
+
+        if(userId == null || password == null || name == null || email == null) return null;
+        return new User(userId, password, name, email);
     }
 }
