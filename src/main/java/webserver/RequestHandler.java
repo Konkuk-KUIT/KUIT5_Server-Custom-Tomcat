@@ -34,11 +34,13 @@ public class RequestHandler implements Runnable {
     public void run() {
         log.log(Level.INFO, "New Client Connect! Connected IP : " + connection.getInetAddress() + ", Port : " + connection.getPort());
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
+
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
+            DataOutputStream dos = new DataOutputStream(out);
 
             HttpRequest httpRequest = HttpRequest.from(br);
+            HttpResponse httpResponse = HttpResponse.from(dos);
 
-            DataOutputStream dos = new DataOutputStream(out);
 
 
             String requestFirstLine = httpRequest.getRequestFirstLine();
@@ -54,7 +56,7 @@ public class RequestHandler implements Runnable {
             if (url.equals(ROOT.getPath())) {
                 filePath = Paths.get(INDEX_HTML.getPath());
                 body = Files.readAllBytes(filePath);
-                response302Header(dos, "/index.html");
+                httpResponse.response302Header("/index.html");
 
             }
 
@@ -86,8 +88,7 @@ public class RequestHandler implements Runnable {
                 body = Files.readAllBytes(filePath);
 
                 //요구사항 4번
-                String redirectUrl = "/index.html";
-                response302Header(dos, redirectUrl);
+                httpResponse.response302Header("/index.html");
             }
 
             // 요구사항 5번
@@ -102,13 +103,13 @@ public class RequestHandler implements Runnable {
                     body = Files.readAllBytes(filePath);
 
                     String redirectUrl = "/user/login_failed.html";
-                    response302Header(dos, redirectUrl);
+                    httpResponse.response302Header(redirectUrl);
                 }
                 if (user.getPassword().equals(map.get("password"))) {
                     filePath = Paths.get(INDEX_HTML.getPath());
                     body = Files.readAllBytes(filePath);
                     String redirectUrl = "/index.html";
-                    loginResponse302Header(dos, redirectUrl);
+                    httpResponse.loginResponse302Header(redirectUrl);
                 }
             }
 
@@ -119,7 +120,7 @@ public class RequestHandler implements Runnable {
                 if (cookieQuery == null || !cookie.get("logined").equals("true")) {
                     filePath = Paths.get(LOGIN_HTML.getPath());
                     String redirectUrl = "/user/login.html";
-                    response302Header(dos, redirectUrl);
+                    httpResponse.response302Header(redirectUrl);
 
                     body = Files.readAllBytes(filePath);
                 }
@@ -142,69 +143,22 @@ public class RequestHandler implements Runnable {
                 body = Files.readAllBytes(filePath);
             }
 
-            response200Header(dos, body.length, contentType);
-            responseBody(dos, body);
+            httpResponse.response200Header(body.length, contentType);
+            httpResponse.responseBody(body);
 
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
     }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String contentType) {
-        try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: " + contentType + ";charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
-        try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
 
-    private void response302Header(DataOutputStream dos, String redirectUrl) {
-        try {
-            dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
-            dos.writeBytes("Location: " + redirectUrl + "\r\n");
-            dos.writeBytes("\r\n");
 
-            dos.flush();
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
 
-    private void loginResponse302Header(DataOutputStream dos, String redirectUrl) {
-        try {
-            dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
-            dos.writeBytes("Location: " + redirectUrl + "\r\n");
-            dos.writeBytes("Set-Cookie: logined=true;" + "Path=/;" + "\r\n");
-            dos.writeBytes("\r\n");
 
-            dos.flush();
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
 
-    private void responseBody(DataOutputStream dos, byte[] body) {
-        try {
-            dos.write(body, 0, body.length);
-            dos.flush();
-        } catch (IOException e) {
-            log.log(Level.SEVERE, e.getMessage());
-        }
-    }
+
+
 
 
 

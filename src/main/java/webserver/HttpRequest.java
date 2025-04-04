@@ -10,7 +10,7 @@ import java.util.logging.Logger;
 public class HttpRequest {
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
 
-    BufferedReader br;
+    private final BufferedReader br;
 
     public HttpRequest(BufferedReader bufferedReader) {
         this.br = bufferedReader;
