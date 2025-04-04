@@ -1,6 +1,7 @@
 package webserver;
 
 import db.MemoryUserRepository;
+import http.*;
 import http.util.HttpRequestUtils;
 import model.User;
 
@@ -37,7 +38,7 @@ public class RequestHandler implements Runnable{
 
             // method, url 추출
             String[] tokens = requestLine.split(" ");
-            String method = tokens[0];
+            HttpMethod method = HttpMethod.from(tokens[0]);
             String url = tokens[1];
 
             int contentLength = 0;
@@ -46,6 +47,7 @@ public class RequestHandler implements Runnable{
             List<String> headers = new ArrayList<>();
             // BufferedReader는 한 번 읽고 나면 커서가 앞으로 움직여서 다시 읽기 어려움
             // 그러므로 헤더 먼저 모두 읽고 저장해두기
+
             String line;
             while (!(line = br.readLine()).equals("")) {
                 headers.add(line);
@@ -54,39 +56,48 @@ public class RequestHandler implements Runnable{
                 }
             }
 
-            if (url.equals("/")) { // default
-                url = "/index.html";
+            if (url.equals(UrlPath.ROOT.getPath())) {
+                url = UrlPath.INDEX.getPath();
             }
 
-            if (method.equals("POST") && url.equals("/user/signup")) { // POST 회원가입
-                log.info("회원가입 선택");
-                handleSignUp(br, dos, contentLength);
-                return;
+            UrlPath matchedPath = UrlPath.from(url);
+
+            switch (matchedPath) {
+                case SIGNUP:
+                    if (method == HttpMethod.POST) {
+                        log.info("회원가입 선택");
+                        handleSignUp(br, dos, contentLength);
+                        return;
+                    }
+                    break;
+
+                case LOGIN:
+                    if (method == HttpMethod.POST) {
+                        log.info("로그인 선택");
+                        handleLogin(br, dos, contentLength);
+                        return;
+                    }
+                    break;
+
+                case USER_LIST:
+                    if (!isLoggedIn(headers)) {
+                        log.info("로그인하지 않은 사용자의 userList 접근");
+                        response302Header(dos, UrlPath.LOGIN_FAILED.getPath());
+                    } else {
+                        log.info("로그인한 사용자의 userList 접근");
+                        response302Header(dos, UrlPath.USER_LIST_HTML.getPath());
+                    }
+                    return;
+
+                default:
+                    if (url.endsWith(".css")) {
+                        handleCssRequest(url, dos);
+                        return;
+                    }
+
+                    // 기본 정적 파일 처리
+                    handleStaticResource(url, dos);
             }
-
-            if (method.equals("POST") && url.equals("/user/login")) { // 로그인
-                log.info("로그인 선택");
-                handleLogin(br, dos, contentLength);
-                return;
-            }
-
-            if (url.equals("/user/userList")) {
-                if(!isLoggedIn(headers)){
-                    log.info("로그인하지 않은 사용자의 userList 접근");
-                    response302Header(dos, "/user/login.html");
-                } else {
-                    response302Header(dos, "/user/list.html");
-                    log.info("로그인한 사용자의 userList 접근");
-                }
-                return;
-            }
-
-            if(url.endsWith("css")){
-                handleCssRequest(url, dos);
-            }
-
-            handleStaticResource(url, dos);
-
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
@@ -131,7 +142,7 @@ public class RequestHandler implements Runnable{
 
         Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
 
-        User user = MemoryUserRepository.getInstance().findUserById(params.get("userId"));
+        User user = MemoryUserRepository.getInstance().findUserById(params.get(UserQueryKey.USER_ID.getKey()));
 
         // Todo 검증 로직 추후에 다 따로 빼기
         if (user == null) { // 존재하지 않는 회원, 로그인 실패
@@ -159,11 +170,12 @@ public class RequestHandler implements Runnable{
         Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
 
         User user = new User(
-                params.get("userId"),
-                params.get("password"),
-                params.get("name"),
-                params.get("email")
+                params.get(UserQueryKey.USER_ID.getKey()),
+                params.get(UserQueryKey.PASSWORD.getKey()),
+                params.get(UserQueryKey.NAME.getKey()),
+                params.get(UserQueryKey.EMAIL.getKey())
         );
+
         MemoryUserRepository.getInstance().addUser(user);
         log.info("New user signed up (POST): " + user.getUserId());
 
@@ -181,13 +193,12 @@ public class RequestHandler implements Runnable{
         return false; // Cookie가 없거나 logined=true가 아닌 경우
     }
 
-
     // Todo response header 클래스 따로 빼기
-    private void response302Header(DataOutputStream dos, String path, String cookie) { // 쿠키 추가해서 오버로드한 메소드
+    private void response302Header(DataOutputStream dos, String path, String cookie) { // 쿠키 오버로딩
         try {
-            dos.writeBytes("HTTP/1.1 302 Found\r\n");
-            dos.writeBytes("Location: " + path + "\r\n");
-            dos.writeBytes("Set-Cookie: " + cookie + "\r\n");
+            dos.writeBytes(HttpStatus.FOUND.getStatusLine());
+            dos.writeBytes(HttpHeader.LOCATION.format(path));
+            dos.writeBytes(HttpHeader.SET_COOKIE.format(cookie));
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
@@ -196,8 +207,8 @@ public class RequestHandler implements Runnable{
 
     private void response302Header(DataOutputStream dos, String path) {
         try {
-            dos.writeBytes("HTTP/1.1 302 Found\r\n");
-            dos.writeBytes("Location: " + path + "\r\n");
+            dos.writeBytes(HttpStatus.FOUND.getStatusLine());
+            dos.writeBytes(HttpHeader.LOCATION.format(path));
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
@@ -206,9 +217,9 @@ public class RequestHandler implements Runnable{
 
     private void response404Header(DataOutputStream dos, int lengthOfBodyContent) {
         try {
-            dos.writeBytes("HTTP/1.1 404 Not Found\r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes(HttpStatus.NOT_FOUND.getStatusLine());
+            dos.writeBytes(HttpHeader.CONTENT_TYPE.format("text/html;charset=utf-8"));
+            dos.writeBytes(HttpHeader.CONTENT_LENGTH.format(String.valueOf(lengthOfBodyContent)));
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
@@ -217,20 +228,20 @@ public class RequestHandler implements Runnable{
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
         try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes(HttpStatus.OK.getStatusLine());
+            dos.writeBytes(HttpHeader.CONTENT_TYPE.format("text/html;charset=utf-8"));
+            dos.writeBytes(HttpHeader.CONTENT_LENGTH.format(String.valueOf(lengthOfBodyContent)));
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
     }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String css) { // css 인자 추가해서 오버로드한 메소드
+    private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String type) { // css인자 추가
         try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/css;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes(HttpStatus.OK.getStatusLine());
+            dos.writeBytes(HttpHeader.CONTENT_TYPE.format("text/css;charset=utf-8"));
+            dos.writeBytes(HttpHeader.CONTENT_LENGTH.format(String.valueOf(lengthOfBodyContent)));
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
