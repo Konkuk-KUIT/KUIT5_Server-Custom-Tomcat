@@ -2,6 +2,8 @@ package http.util;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class IOUtils {
     /**
@@ -17,5 +19,17 @@ public class IOUtils {
         char[] body = new char[contentLength];
         br.read(body, 0, contentLength);
         return String.copyValueOf(body);
+    }
+
+    public static Map<String, String> readHeaders(BufferedReader br) throws IOException {
+        Map<String, String> headers = new HashMap<>();
+        String line;
+        while (!(line = br.readLine()).isEmpty()) { // 빈 줄이 나올 때까지 읽음
+            String[] headerParts = line.split(": ", 2);
+            if (headerParts.length == 2) {
+                headers.put(headerParts[0], headerParts[1]);
+            }
+        }
+        return headers;
     }
 }
